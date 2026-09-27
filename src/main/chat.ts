@@ -57,11 +57,18 @@ export async function startCloudChat(req: CloudChatRequest): Promise<string> {
             const form = new FormData();
             form.append('prompt', req.prompt);
             form.append('model', req.model);
-            form.append('feature', req.feature ?? 'chat');
+            // Standard chat must send an empty feature — the backend rejects any
+            // value not in its VALID_FEATURES allow-list (e.g. 'chat').
+            form.append('feature', req.feature ?? '');
             form.append('reasoningEffort', req.reasoningEffort ?? '');
             form.append('isDeepSearch', String(Boolean(req.isDeepSearch)));
             if (req.systemPrompt) form.append('systemPrompt', req.systemPrompt);
             form.append('history', JSON.stringify(req.history ?? []));
+            if (req.historyMode) form.append('historyMode', req.historyMode);
+            if (req.historyCustomCount != null) {
+                form.append('historyCustomCount', String(req.historyCustomCount));
+            }
+            if (req.cavemanMode) form.append('cavemanMode', req.cavemanMode);
 
             const res = await aiApi.openChatStream(session.accessToken, form, controller.signal);
             if (!res.body) throw new Error('Streaming not supported');

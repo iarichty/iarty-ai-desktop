@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bridge } from '@/lib/bridge';
+import { useNotification } from '@/context/NotificationContext';
 import type { FeatureStreamRequest, StreamEvent } from '@shared/types';
 
 interface UseFeatureStream {
@@ -28,6 +29,7 @@ export function useFeatureStream(): UseFeatureStream {
     const [streaming, setStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const activeRequest = useRef<string | null>(null);
+    const { addNotification } = useNotification();
 
     useEffect(() => {
         const off = bridge.features.onStream(
@@ -40,13 +42,14 @@ export function useFeatureStream(): UseFeatureStream {
                     activeRequest.current = null;
                 } else if (event.type === 'error') {
                     setError(event.message);
+                    addNotification(event.message, 'error');
                     setStreaming(false);
                     activeRequest.current = null;
                 }
             },
         );
         return off;
-    }, []);
+    }, [addNotification]);
 
     const run = useCallback(async (req: FeatureStreamRequest) => {
         setContent('');

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbAlertTriangle } from 'react-icons/tb';
+import FormattedContent from './FormattedContent';
 
 interface Props {
     content: string;
@@ -10,7 +11,7 @@ interface Props {
     emptyHint?: ReactNode;
 }
 
-/** Read-only streamed output surface with an inline error banner. */
+/** Read-only streamed output surface rendering markdown, with an error banner. */
 export function OutputPanel({ content, streaming, error, emptyHint }: Props): JSX.Element {
     const endRef = useRef<HTMLDivElement>(null);
 
@@ -35,8 +36,8 @@ export function OutputPanel({ content, streaming, error, emptyHint }: Props): JS
             </AnimatePresence>
 
             {content ? (
-                <div className="whitespace-pre-wrap pb-6 text-sm leading-relaxed text-text-h">
-                    {content}
+                <div className="pb-6 text-sm leading-relaxed">
+                    <FormattedContent content={content} />
                     {streaming && (
                         <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-accent align-middle" />
                     )}

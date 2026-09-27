@@ -98,6 +98,10 @@ export interface AiPlan {
 export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
+    /** ISO timestamp; set by the renderer for display, not sent to the model. */
+    timestamp?: string;
+    /** True when the assistant turn failed (e.g. out of credits) so the UI can offer a retry. */
+    failed?: boolean;
 }
 
 export interface CloudChatRequest {
@@ -108,6 +112,9 @@ export interface CloudChatRequest {
     history?: ChatMessage[];
     reasoningEffort?: string;
     isDeepSearch?: boolean;
+    historyMode?: string;
+    historyCustomCount?: number;
+    cavemanMode?: string;
 }
 
 /**
@@ -155,6 +162,19 @@ export interface ChatStartResult {
 export interface AppSettings {
     localProvider: LocalProviderConfig;
     defaultModelId: string;
+}
+
+/** Chat context-length modes offered in the composer (mirrors the web app). */
+export type HistoryMode = 'short' | 'long' | 'full' | 'custom';
+export type CavemanMode = 'off' | 'lite' | 'full';
+export type ReasoningEffort = 'disabled' | 'low' | 'medium' | 'high';
+
+/** Per-conversation composer settings held in renderer state. */
+export interface ChatSettings {
+    historyMode: HistoryMode;
+    historyCustomCount: number;
+    cavemanMode: CavemanMode;
+    reasoningEffort: ReasoningEffort;
 }
 
 /** Persisted shape in electron-store. Tokens are kept in the OS keychain-ish

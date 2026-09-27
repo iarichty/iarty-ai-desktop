@@ -6,6 +6,7 @@ import { useFeatureStream } from '@/hooks/useFeatureStream';
 import { ModelPicker } from './ModelPicker';
 import { Composer } from './Composer';
 import { OutputPanel } from './OutputPanel';
+import FeatureHero from './FeatureHero';
 
 interface Props {
     feature: Extract<FeatureId, 'linkedin-roast' | 'ig-roast' | 'tiktok-roast'>;
@@ -74,17 +75,23 @@ export function RoastView({ feature, models, selected, onSelect }: Props): JSX.E
             </div>
 
             <main className="flex-1 overflow-y-auto px-5">
-                <OutputPanel
-                    content={stream.content}
-                    streaming={stream.streaming}
-                    error={stream.error}
-                    emptyHint={
-                        <>
-                            <Icon className="mb-2 h-8 w-8 text-accent" />
-                            {meta.placeholder}
-                        </>
-                    }
-                />
+                {stream.content || stream.error ? (
+                    <OutputPanel
+                        content={stream.content}
+                        streaming={stream.streaming}
+                        error={stream.error}
+                        emptyHint={
+                            <>
+                                <Icon className="mb-2 h-8 w-8 text-accent" />
+                                {meta.placeholder}
+                            </>
+                        }
+                    />
+                ) : (
+                    <div className="flex h-full flex-col items-center justify-center">
+                        <FeatureHero icon={Icon} title={meta.title} description={meta.hint} />
+                    </div>
+                )}
             </main>
 
             <footer className="border-t border-border px-5 py-4">

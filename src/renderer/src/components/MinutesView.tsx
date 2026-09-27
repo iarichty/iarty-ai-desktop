@@ -5,6 +5,7 @@ import { useFeatureStream } from '@/hooks/useFeatureStream';
 import { ModelPicker } from './ModelPicker';
 import { Composer } from './Composer';
 import { OutputPanel } from './OutputPanel';
+import FeatureHero from './FeatureHero';
 
 interface Props {
     models: UnifiedModel[];
@@ -51,17 +52,27 @@ export function MinutesView({ models, selected, onSelect }: Props): JSX.Element 
             </div>
 
             <main className="flex-1 overflow-y-auto px-5">
-                <OutputPanel
-                    content={stream.content}
-                    streaming={stream.streaming}
-                    error={stream.error}
-                    emptyHint={
-                        <>
-                            <TbMicrophone className="mb-2 h-8 w-8 text-accent" />
-                            Paste your meeting transcript to generate structured minutes.
-                        </>
-                    }
-                />
+                {stream.content || stream.error ? (
+                    <OutputPanel
+                        content={stream.content}
+                        streaming={stream.streaming}
+                        error={stream.error}
+                        emptyHint={
+                            <>
+                                <TbMicrophone className="mb-2 h-8 w-8 text-accent" />
+                                Paste your meeting transcript to generate structured minutes.
+                            </>
+                        }
+                    />
+                ) : (
+                    <div className="flex h-full flex-col items-center justify-center">
+                        <FeatureHero
+                            icon={TbMicrophone}
+                            title="Minutes"
+                            description="Turn a raw meeting transcript into clean, structured minutes with action items and decisions."
+                        />
+                    </div>
+                )}
             </main>
 
             <footer className="border-t border-border px-5 py-4">

@@ -39,7 +39,7 @@ const TITLES: Record<FeatureId, string> = {
  * capsule sidebar, a shared top bar, and the active feature view.
  */
 export function MainLayout({ session, settings, onSaveSettings, onLogout }: Props): JSX.Element {
-    const { models, local, refreshLocal } = useModels(true, settings);
+    const { models, refreshLocal } = useModels(true, settings);
     const plan = usePlan(true);
     const [feature, setFeature] = useState<FeatureId>('chat');
     const [selected, setSelected] = useState<UnifiedModel | null>(null);
@@ -83,10 +83,6 @@ export function MainLayout({ session, settings, onSaveSettings, onLogout }: Prop
                                     models={models}
                                     selected={selected}
                                     onSelect={setSelected}
-                                    localReachable={Boolean(local?.reachable)}
-                                    localKind={settings.localProvider.kind}
-                                    localBaseUrl={settings.localProvider.baseUrl}
-                                    onRefreshLocal={probe}
                                     onCloudUsed={plan.refresh}
                                 />
                             )}

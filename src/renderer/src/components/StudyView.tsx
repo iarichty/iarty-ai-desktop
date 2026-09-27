@@ -5,6 +5,7 @@ import { useFeatureStream } from '@/hooks/useFeatureStream';
 import { ModelPicker } from './ModelPicker';
 import { Composer } from './Composer';
 import { OutputPanel } from './OutputPanel';
+import FeatureHero from './FeatureHero';
 
 interface Props {
     models: UnifiedModel[];
@@ -102,19 +103,29 @@ export function StudyView({ models, selected, onSelect }: Props): JSX.Element {
             </div>
 
             <main className="flex-1 overflow-y-auto px-5">
-                <OutputPanel
-                    content={stream.content}
-                    streaming={stream.streaming}
-                    error={stream.error}
-                    emptyHint={
-                        <>
-                            <TbBook className="mb-2 h-8 w-8 text-accent" />
-                            {mode === 'material'
-                                ? 'Paste study material to get a structured summary.'
-                                : 'Paste the material summary to generate a quiz.'}
-                        </>
-                    }
-                />
+                {stream.content || stream.error ? (
+                    <OutputPanel
+                        content={stream.content}
+                        streaming={stream.streaming}
+                        error={stream.error}
+                        emptyHint={
+                            <>
+                                <TbBook className="mb-2 h-8 w-8 text-accent" />
+                                {mode === 'material'
+                                    ? 'Paste study material to get a structured summary.'
+                                    : 'Paste the material summary to generate a quiz.'}
+                            </>
+                        }
+                    />
+                ) : (
+                    <div className="flex h-full flex-col items-center justify-center">
+                        <FeatureHero
+                            icon={TbBook}
+                            title="Study"
+                            description="Summarise dense study material into clear notes, then generate quizzes to test yourself."
+                        />
+                    </div>
+                )}
             </main>
 
             <footer className="border-t border-border px-5 py-4">
