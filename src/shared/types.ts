@@ -110,6 +110,30 @@ export interface CloudChatRequest {
     isDeepSearch?: boolean;
 }
 
+/**
+ * Generic AI feature request routed to a specific (streaming) backend path.
+ * Covers PRD builder, minutes, study and the roast endpoints — every one of
+ * which streams `data: {content}` SSE chunks.
+ */
+export interface FeatureStreamRequest {
+    /** Path under the AI API, e.g. `/ai/minutes`. */
+    path: string;
+    /** Extra multipart text fields sent alongside the standard ones. */
+    fields?: Record<string, string>;
+    model: string;
+    history?: ChatMessage[];
+}
+
+/** Feature ids the desktop sidebar can route to. */
+export type FeatureId =
+    | 'chat'
+    | 'prd-builder'
+    | 'minutes'
+    | 'study'
+    | 'linkedin-roast'
+    | 'ig-roast'
+    | 'tiktok-roast';
+
 export interface LocalChatRequest {
     kind: LocalProviderKind;
     baseUrl: string;

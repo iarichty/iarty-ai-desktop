@@ -1,7 +1,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { ThemeProvider } from '@/context/ThemeContext';
-import { ChatPanel } from '@/components/ChatPanel';
+import { MainLayout } from '@/components/MainLayout';
 import { LoginView } from '@/components/LoginView';
 
 export default function App(): JSX.Element {
@@ -22,7 +22,7 @@ export default function App(): JSX.Element {
                     onLogin={auth.login}
                 />
             ) : (
-                <ChatPanel
+                <MainLayout
                     session={auth.session}
                     settings={settings}
                     onSaveSettings={saveSettings}

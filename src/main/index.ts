@@ -20,7 +20,9 @@ import {
     cancelChat,
     relayToWindow,
     startCloudChat,
+    startFeatureStream,
     startLocalChat,
+    startStudyQuiz,
 } from './chat';
 import { persistence } from './store';
 import { PROTOCOL_SCHEME } from './config';
@@ -29,7 +31,26 @@ import type {
     CloudChatRequest,
     LocalChatRequest,
     LocalProviderKind,
+    FeatureStreamRequest,
 } from '@shared/types';
+
+/**
+ * Linux input-method hardening.
+ *
+ * On many Linux desktops `XMODIFIERS=@im=ibus` makes GTK hand every key event
+ * to IBus. When the IBus daemon isn't reachable, Chromium's GTK IM context
+ * backs up — you see `IBUS-WARNING **: Events queue growing too big, will
+ * start to drop.` and text inputs (notably the sign-in email field) silently
+ * stop accepting keystrokes.
+ *
+ * Forcing GTK to a self-contained IM context (before Electron initialises GTK)
+ * keeps keyboard input working regardless of the system IBus state.
+ */
+if (process.platform === 'linux') {
+    if (!process.env.GTK_IM_MODULE || process.env.GTK_IM_MODULE === 'ibus') {
+        process.env.GTK_IM_MODULE = 'gtk-im-context-simple';
+    }
+}
 
 const __dirname_ = fileURLToPath(new URL('.', import.meta.url));
 
@@ -169,6 +190,16 @@ function registerIpc(): void {
     ipcMain.handle('chat:startCloud', (_e, req: CloudChatRequest) => startCloudChat(req));
     ipcMain.handle('chat:startLocal', (_e, req: LocalChatRequest) => startLocalChat(req));
     ipcMain.handle('chat:cancel', (_e, requestId: string) => cancelChat(requestId));
+
+    ipcMain.handle('feature:start', (_e, req: FeatureStreamRequest) => startFeatureStream(req));
+    ipcMain.handle(
+        'feature:studyQuiz',
+        (
+            _e,
+            req: { summaryText: string; language?: string; amount?: number; instruction?: string; model: string },
+        ) => startStudyQuiz(req),
+    );
+    ipcMain.handle('feature:cancel', (_e, requestId: string) => cancelChat(requestId));
 
     ipcMain.handle('settings:get', () => persistence.getSettings());
     ipcMain.handle('settings:set', (_e, settings: AppSettings) => {

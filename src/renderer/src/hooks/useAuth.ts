@@ -38,7 +38,10 @@ export function useAuth(): UseAuth {
         mounted.current = true;
         void reload();
         const offChange = bridge.auth.onChange((payload) => {
-            if (mounted.current && payload) setSession(payload);
+            // A `null` payload means the session ended (logout, or the main
+            // process could not refresh an expired token). Mirror it so the UI
+            // returns to the sign-in screen instead of showing a broken shell.
+            if (mounted.current) setSession(payload);
         });
         const offLog = bridge.auth.onLog((message) => {
             if (mounted.current) setStatus(message);

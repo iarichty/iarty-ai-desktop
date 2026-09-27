@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { TbExternalLink } from 'react-icons/tb';
+import { TbLock } from 'react-icons/tb';
 import { Button } from './Button';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
@@ -51,7 +51,7 @@ export function LoginView({ loading, error, status, onLogin }: Props): JSX.Eleme
 
                 <Button
                     size="lg"
-                    onClick={() => onLogin('browser')}
+                    onClick={() => onLogin('inApp')}
                     disabled={loading}
                     className="w-full"
                     aria-busy={loading}
@@ -63,24 +63,24 @@ export function LoginView({ loading, error, status, onLogin }: Props): JSX.Eleme
                         </>
                     ) : (
                         <>
-                            <TbExternalLink className="h-5 w-5" />
-                            Sign in with your browser
+                            <TbLock className="h-5 w-5" />
+                            Sign in to IARTY
                         </>
                     )}
                 </Button>
 
                 <button
                     type="button"
-                    onClick={() => onLogin('inApp')}
+                    onClick={() => onLogin('browser')}
                     disabled={loading}
                     className="text-xs text-text underline-offset-4 transition-colors hover:text-accent hover:underline disabled:opacity-50"
                 >
-                    Or sign in inside the app instead
+                    Or continue in your browser
                 </button>
 
                 <p className="text-center text-xs text-text">
-                    Opens your default browser — if you're already signed in there, you'll be back
-                    here in a second.
+                    Sign in securely inside the app. Your session is kept on this device so cloud
+                    models, credits and every feature stay available until you sign out.
                 </p>
 
                 {status && (

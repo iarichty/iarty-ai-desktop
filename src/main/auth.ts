@@ -34,6 +34,9 @@ function emitLoginLog(message: string): void {
     }
 }
 
+/** Alias used by the session-refresh paths so logs flow to the same channel. */
+const log = emitLoginLog;
+
 interface TokenClaims {
     id: number;
     name: string;
@@ -102,8 +105,13 @@ export class AuthManager {
                 persistence.setSession(session);
                 return session;
             }
-        } catch {
-            /* fall through */
+            log('Access token expired — refresh cookie not found in the app session.');
+        } catch (error) {
+            log(
+                `Token refresh via in-app session failed: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
         }
 
         // Fallback to the headless jar (external-browser flow).
@@ -115,12 +123,22 @@ export class AuthManager {
                 const session = await buildSession(accessToken);
                 persistence.setSession(session);
                 return session;
-            } catch {
-                /* session is dead */
+            } catch (error) {
+                log(
+                    `Token refresh via stored cookie failed: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`,
+                );
             }
         }
 
+        // The session is genuinely dead. Clear it and tell the renderer so the
+        // UI can return to the sign-in screen instead of showing a broken shell.
+        log('Session expired and could not be refreshed — signing out.');
         persistence.clearSession();
+        for (const wc of webContents.getAllWebContents()) {
+            if (!wc.isDestroyed()) wc.send('auth:changed', null);
+        }
         return null;
     }
 
@@ -140,6 +158,12 @@ export class AuthManager {
         await ses.clearStorageData({ storages: ['cookies'] });
         emitLoginLog('Opening the IARTY sign-in window…');
 
+        // Give the in-app window its own loopback callback so the dedicated
+        // /desktop-signin page can hand the token straight back to us. This is
+        // a belt-and-braces path alongside the refresh-cookie polling below.
+        const { server, port, waitForCallback } = await startLoopback();
+        this.loopback = server;
+
         const win = new BrowserWindow({
             width: 480,
             height: 760,
@@ -155,7 +179,9 @@ export class AuthManager {
         });
         this.loginWindow = win;
 
-        win.loadURL(SIGNIN_URL).catch(() => {
+        const redirect = `http://${LOOPBACK_HOST}:${port}/callback`;
+        const loginUrl = `${SIGNIN_URL}?desktop_redirect=${encodeURIComponent(redirect)}`;
+        win.loadURL(loginUrl).catch(() => {
             emitLoginLog('Could not load the sign-in page. Check your connection.');
         });
 
@@ -229,13 +255,26 @@ export class AuthManager {
             // Kick once immediately in case a session already exists.
             void attempt();
 
-            // Also try whenever the page navigates away from /signin (the web
-            // app redirects to the dashboard/profile after a successful login).
+            // The dedicated /desktop-signin page hands the access token back to
+            // our loopback server — resolve with it directly when that arrives.
+            void waitForCallback().then(async (params) => {
+                if (settled || !params) return;
+                const token = params.get('access_token') ?? params.get('token');
+                if (!token) {
+                    void attempt();
+                    return;
+                }
+                emitLoginLog('Signed in — loading your workspace…');
+                done(await buildSession(token));
+            });
+
+            // Also try whenever the page navigates away from the sign-in page
+            // (some deployments redirect to the dashboard/profile after login).
             win.webContents.on('did-navigate', (_e, url) => {
-                if (!/\/signin/.test(url)) void attempt();
+                if (!/desktop-signin|\/signin/.test(url)) void attempt();
             });
             win.webContents.on('did-navigate-in-page', (_e, url) => {
-                if (!/\/signin/.test(url)) void attempt();
+                if (!/desktop-signin|\/signin/.test(url)) void attempt();
             });
 
             const timer = setTimeout(() => done(null), 5 * 60 * 1000);
@@ -248,6 +287,7 @@ export class AuthManager {
             this.loginWindow.close();
         }
         this.loginWindow = null;
+        this.stopLoopback();
 
         if (!session) throw new Error('Sign-in was cancelled or timed out. Please try again.');
         persistence.setSession(session);

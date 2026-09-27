@@ -141,7 +141,20 @@ export const aiApi = {
         form: FormData,
         signal: AbortSignal,
     ): Promise<Response> {
-        const res = await fetch(`${AI_API_URL}/ai/chat`, {
+        return this.openStream(token, '/ai/chat', form, signal);
+    },
+
+    /**
+     * Opens a streaming SSE request against any AI feature path (PRD builder,
+     * minutes, study, roasts). Returns the raw Response for incremental reads.
+     */
+    async openStream(
+        token: string,
+        path: string,
+        form: FormData,
+        signal: AbortSignal,
+    ): Promise<Response> {
+        const res = await fetch(`${AI_API_URL}${path}`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
             body: form,
@@ -149,7 +162,7 @@ export const aiApi = {
         });
         if (!res.ok) {
             const text = await res.text().catch(() => '');
-            let message = `Chat request failed (${res.status})`;
+            let message = `Request failed (${res.status})`;
             try {
                 const parsed = JSON.parse(text) as { message?: string };
                 if (parsed.message) message = parsed.message;
@@ -159,5 +172,46 @@ export const aiApi = {
             throw new ApiError(message, res.status);
         }
         return res;
+    },
+
+    /** Non-streaming JSON call (study quiz) returning the parsed `data` payload. */
+    async studyQuiz(
+        token: string,
+        form: FormData,
+        signal: AbortSignal,
+    ): Promise<unknown> {
+        const res = await fetch(`${AI_API_URL}/ai/study-quiz`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
+            body: form,
+            signal,
+        });
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            let message = `Request failed (${res.status})`;
+            try {
+                const parsed = JSON.parse(text) as { message?: string };
+                if (parsed.message) message = parsed.message;
+            } catch {
+                /* ignore */
+            }
+            throw new ApiError(message, res.status);
+        }
+        // The quiz endpoint streams SSE chunks (section: 'quiz').
+        const raw = await res.text();
+        let content = '';
+        for (const line of raw.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            const data = line.slice(5).trim();
+            if (data === '[DONE]') continue;
+            try {
+                const parsed = JSON.parse(data) as { content?: string; error?: string };
+                if (parsed.error) throw new ApiError(parsed.error, 502);
+                if (parsed.content) content += parsed.content;
+            } catch (err) {
+                if (err instanceof ApiError) throw err;
+            }
+        }
+        return content;
     },
 };

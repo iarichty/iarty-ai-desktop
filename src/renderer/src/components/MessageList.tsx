@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TbSparkles, TbUser } from 'react-icons/tb';
+import { TbUser } from 'react-icons/tb';
 import type { ChatMessage } from '@shared/types';
 import { Logo } from './Logo';
 
@@ -96,21 +96,27 @@ function Dot({ delay }: { delay: number }): JSX.Element {
 
 function EmptyState(): JSX.Element {
     return (
-        <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <div className="flex h-full flex-col items-center justify-center px-6 text-center">
             <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent/60 shadow-lg shadow-accent/20"
+                initial={{ scale: 0.9, opacity: 0, y: 12 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                className="relative"
             >
-                <TbSparkles className="h-7 w-7 text-[color:var(--accent-contrast)]" />
+                <div className="absolute inset-0 bg-gradient-to-r from-accent to-accent-2 opacity-30 blur-2xl" />
+                <h1 className="relative bg-gradient-to-br from-accent to-accent-2 bg-clip-text text-6xl font-black tracking-tight text-transparent sm:text-7xl">
+                    IARTY AI
+                </h1>
             </motion.div>
-            <div>
-                <p className="text-sm font-medium text-text-h">Start a conversation</p>
-                <p className="text-xs text-text">
-                    Pick a cloud model (uses credits) or a local model (unlimited).
-                </p>
-            </div>
+            <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                className="mt-4 max-w-lg text-sm text-text"
+            >
+                Welcome to the future of AI-powered conversations. Ask me anything — pick a cloud
+                model (uses credits) or one of your local models (unlimited).
+            </motion.p>
         </div>
     );
 }

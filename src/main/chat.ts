@@ -13,7 +13,12 @@ import { EventEmitter } from 'node:events';
 import { aiApi } from './api';
 import { streamLocalChat } from './localLlm';
 import { authManager } from './auth';
-import type { CloudChatRequest, LocalChatRequest, StreamEvent } from '@shared/types';
+import type {
+    CloudChatRequest,
+    LocalChatRequest,
+    StreamEvent,
+    FeatureStreamRequest,
+} from '@shared/types';
 
 /** Per-request abort controllers so the renderer can cancel a stream. */
 const inflight = new Map<string, AbortController>();
@@ -111,6 +116,107 @@ export function startLocalChat(req: LocalChatRequest): string {
 
     return requestId;
 }
+
+/**
+ * Starts a generic AI-feature stream (PRD builder, minutes, study, roasts).
+ * The payload is sent as multipart FormData so it matches the web app's
+ * `/ai/*` contract exactly, then SSE chunks are relayed to the renderer.
+ */
+export function startFeatureStream(req: FeatureStreamRequest): string {
+    const requestId = crypto.randomUUID();
+    const controller = new AbortController();
+    inflight.set(requestId, controller);
+
+    void (async () => {
+        try {
+            const session = await authManager.getSession();
+            if (!session) throw new Error('Not authenticated');
+
+            const form = new FormData();
+            for (const [key, value] of Object.entries(req.fields ?? {})) {
+                form.append(key, value);
+            }
+            form.append('model', req.model ?? '');
+            form.append('history', JSON.stringify(req.history ?? []));
+
+            const res = await aiApi.openStream(
+                session.accessToken,
+                req.path,
+                form,
+                controller.signal,
+            );
+            if (!res.body) throw new Error('Streaming not supported');
+
+            await parseSse(res.body, (chunk) => emit(requestId, { type: 'chunk', content: chunk }));
+            emit(requestId, { type: 'done' });
+        } catch (error) {
+            if (controller.signal.aborted) {
+                emit(requestId, { type: 'done' });
+            } else {
+                emit(requestId, {
+                    type: 'error',
+                    message: error instanceof Error ? error.message : 'Request failed',
+                });
+            }
+        } finally {
+            inflight.delete(requestId);
+        }
+    })();
+
+    return requestId;
+}
+
+/**
+ * Runs the (SSE-streamed) study-quiz endpoint to completion and returns the
+ * assembled quiz text as a single chunk, then `done`.
+ */
+export function startStudyQuiz(req: {
+    summaryText: string;
+    language?: string;
+    amount?: number;
+    instruction?: string;
+    model: string;
+}): string {
+    const requestId = crypto.randomUUID();
+    const controller = new AbortController();
+    inflight.set(requestId, controller);
+
+    void (async () => {
+        try {
+            const session = await authManager.getSession();
+            if (!session) throw new Error('Not authenticated');
+
+            const form = new FormData();
+            form.append('summaryText', req.summaryText);
+            if (req.language) form.append('language', req.language);
+            if (req.amount != null) form.append('amount', String(req.amount));
+            if (req.instruction) form.append('instruction', req.instruction);
+            form.append('model', req.model ?? '');
+
+            const text = (await aiApi.studyQuiz(
+                session.accessToken,
+                form,
+                controller.signal,
+            )) as string;
+            if (text) emit(requestId, { type: 'chunk', content: text });
+            emit(requestId, { type: 'done' });
+        } catch (error) {
+            if (controller.signal.aborted) {
+                emit(requestId, { type: 'done' });
+            } else {
+                emit(requestId, {
+                    type: 'error',
+                    message: error instanceof Error ? error.message : 'Request failed',
+                });
+            }
+        } finally {
+            inflight.delete(requestId);
+        }
+    })();
+
+    return requestId;
+}
+
 
 /** Parses an OpenAI-style SSE stream (`data: {content|error}` … `[DONE]`). */
 async function parseSse(

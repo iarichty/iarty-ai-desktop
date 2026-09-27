@@ -14,6 +14,7 @@ import type {
     LocalProviderStatus,
     LoginResult,
     StreamEvent,
+    FeatureStreamRequest,
 } from './types';
 
 export interface IartyBridge {
@@ -38,6 +39,21 @@ export interface IartyBridge {
     chat: {
         startCloud: (req: CloudChatRequest) => Promise<string>;
         startLocal: (req: LocalChatRequest) => Promise<string>;
+        cancel: (requestId: string) => Promise<void>;
+        onStream: (
+            listener: (payload: { requestId: string; event: StreamEvent }) => void,
+        ) => () => void;
+    };
+    /**
+     * Generic AI-feature streaming (PRD builder, minutes, study, roasts).
+     * Shares the same requestId + StreamEvent contract as `chat` so the
+     * renderer can reuse one streaming hook for every feature.
+     */
+    features: {
+        start: (req: FeatureStreamRequest) => Promise<string>;
+        studyQuiz: (
+            req: { summaryText: string; language?: string; amount?: number; instruction?: string; model: string },
+        ) => Promise<string>;
         cancel: (requestId: string) => Promise<void>;
         onStream: (
             listener: (payload: { requestId: string; event: StreamEvent }) => void,

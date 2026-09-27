@@ -21,8 +21,14 @@ export const AI_API_URL = import.meta.env.MAIN_VITE_AI_API_URL || 'http://localh
 /** Public web app opened in the browser for sign-in. */
 export const WEB_APP_URL = import.meta.env.MAIN_VITE_WEB_APP_URL || 'http://localhost:5173';
 
-/** Where the browser is sent to authenticate. */
-export const SIGNIN_URL = `${WEB_APP_URL}/signin`;
+/**
+ * Dedicated desktop sign-in page.
+ *
+ * A standalone page (not the shared `/signin`) that owns the loopback hand-off
+ * and never routes the browser into the web app's dashboard — so the desktop
+ * flow can't be bounced to `/profile` by the web app's route middleware.
+ */
+export const SIGNIN_URL = `${WEB_APP_URL}/desktop-signin`;
 
 /** Custom protocol used as a deep-link fallback when the loopback cannot run. */
 export const PROTOCOL_SCHEME = 'iarty';

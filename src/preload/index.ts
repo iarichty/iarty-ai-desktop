@@ -9,6 +9,7 @@ import type {
     AppSettings,
     AuthSession,
     CloudChatRequest,
+    FeatureStreamRequest,
     LocalChatRequest,
     LocalProviderKind,
     StreamEvent,
@@ -43,6 +44,25 @@ const api: IartyBridge = {
         startCloud: (req: CloudChatRequest) => ipcRenderer.invoke('chat:startCloud', req),
         startLocal: (req: LocalChatRequest) => ipcRenderer.invoke('chat:startLocal', req),
         cancel: (requestId: string) => ipcRenderer.invoke('chat:cancel', requestId),
+        onStream: (listener: (payload: { requestId: string; event: StreamEvent }) => void) => {
+            const handler = (
+                _e: unknown,
+                payload: { requestId: string; event: StreamEvent },
+            ): void => listener(payload);
+            ipcRenderer.on('chat:stream', handler);
+            return () => ipcRenderer.removeListener('chat:stream', handler);
+        },
+    },
+    features: {
+        start: (req: FeatureStreamRequest) => ipcRenderer.invoke('feature:start', req),
+        studyQuiz: (req: {
+            summaryText: string;
+            language?: string;
+            amount?: number;
+            instruction?: string;
+            model: string;
+        }) => ipcRenderer.invoke('feature:studyQuiz', req),
+        cancel: (requestId: string) => ipcRenderer.invoke('feature:cancel', requestId),
         onStream: (listener: (payload: { requestId: string; event: StreamEvent }) => void) => {
             const handler = (
                 _e: unknown,
