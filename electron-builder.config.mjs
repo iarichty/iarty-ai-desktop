@@ -48,14 +48,15 @@ export default {
     mac: {
         icon: 'build/icon.png',
         category: 'public.app-category.productivity',
-        target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
+        // `zip` is a reliable artifact on CI; `dmg` is the friendly installer.
+        target: [
+            { target: 'dmg', arch: ['x64', 'arm64'] },
+            { target: 'zip', arch: ['x64', 'arm64'] },
+        ],
         artifactName: 'iarty-ai-desktop-${version}-mac-${arch}.${ext}',
     },
     dmg: {
         title: 'IARTY AI ${version}',
-        // A volume name without spaces avoids flakes in `hdiutil detach`
-        // on GitHub's macOS runners.
-        volumeName: 'IARTY-AI',
     },
     linux: {
         icon: 'build/icon.png',

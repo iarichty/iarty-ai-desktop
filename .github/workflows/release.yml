@@ -50,6 +50,9 @@ jobs:
               env:
                   # electron-builder publishes to GitHub Releases using this token.
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # No signing certificates in CI: skip the identity probe so the
+                  # build is deterministic (unsigned artifacts).
+                  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
                   # Deployment URLs are injected at build time. Override these
                   # repo/environment variables to point at your own backend;
                   # the defaults below are the public IARTY endpoints.
