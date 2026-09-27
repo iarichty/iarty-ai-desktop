@@ -53,6 +53,9 @@ export default {
     },
     dmg: {
         title: 'IARTY AI ${version}',
+        // A volume name without spaces avoids flakes in `hdiutil detach`
+        // on GitHub's macOS runners.
+        volumeName: 'IARTY-AI',
     },
     linux: {
         icon: 'build/icon.png',
