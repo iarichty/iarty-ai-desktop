@@ -262,7 +262,14 @@ export class AuthManager {
 
         const redirect = `http://${LOOPBACK_HOST}:${port}/callback`;
         const loginUrl = `${SIGNIN_URL}?desktop_redirect=${encodeURIComponent(redirect)}`;
-        await shell.openExternal(loginUrl).catch(() => this.openFallbackWindow(loginUrl));
+        emitLoginLog('Opening your browser to sign in…');
+
+        const opened = await shell.openExternal(loginUrl).then(
+            () => true,
+            () => false,
+        );
+        // If we cannot launch the system browser, fall back to an in-app window.
+        if (!opened) return this.loginWithInAppWindow();
 
         try {
             const params = await withTimeout(waitForCallback(), 5 * 60 * 1000);
@@ -270,9 +277,13 @@ export class AuthManager {
 
             const accessTokenFromQuery = params.get('access_token') ?? params.get('token');
             let accessToken = accessTokenFromQuery ?? '';
-            if (!accessToken) accessToken = (await exchangeToken()) ?? '';
+            if (!accessToken) {
+                emitLoginLog('Finishing sign-in…');
+                accessToken = (await exchangeToken()) ?? '';
+            }
             if (!accessToken) throw new Error('Could not establish a session. Please try again.');
 
+            emitLoginLog('Signed in — loading your workspace…');
             const session = await buildSession(accessToken);
             persistence.setSession(session);
             return session;
@@ -304,11 +315,6 @@ export class AuthManager {
             .clearStorageData({ storages: ['cookies'] })
             .catch(() => undefined);
         persistence.clearSession();
-    }
-
-    private openFallbackWindow(loginUrl: string): void {
-        const win = new BrowserWindow({ width: 480, height: 720, title: 'Sign in to IARTY' });
-        void win.loadURL(loginUrl);
     }
 
     private stopLoopback(): void {

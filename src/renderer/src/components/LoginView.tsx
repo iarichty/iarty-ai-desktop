@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { TbLockOpen } from 'react-icons/tb';
+import { TbExternalLink } from 'react-icons/tb';
 import { Button } from './Button';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
@@ -51,7 +51,7 @@ export function LoginView({ loading, error, status, onLogin }: Props): JSX.Eleme
 
                 <Button
                     size="lg"
-                    onClick={() => onLogin('inApp')}
+                    onClick={() => onLogin('browser')}
                     disabled={loading}
                     className="w-full"
                     aria-busy={loading}
@@ -63,23 +63,24 @@ export function LoginView({ loading, error, status, onLogin }: Props): JSX.Eleme
                         </>
                     ) : (
                         <>
-                            <TbLockOpen className="h-5 w-5" />
-                            Sign in with IARTY
+                            <TbExternalLink className="h-5 w-5" />
+                            Sign in with your browser
                         </>
                     )}
                 </Button>
 
                 <button
                     type="button"
-                    onClick={() => onLogin('browser')}
+                    onClick={() => onLogin('inApp')}
                     disabled={loading}
                     className="text-xs text-text underline-offset-4 transition-colors hover:text-accent hover:underline disabled:opacity-50"
                 >
-                    Or sign in with your browser instead
+                    Or sign in inside the app instead
                 </button>
 
                 <p className="text-center text-xs text-text">
-                    A secure IARTY sign-in window opens. Your password never touches this app.
+                    Opens your default browser — if you're already signed in there, you'll be back
+                    here in a second.
                 </p>
 
                 {status && (

@@ -130,10 +130,12 @@ function registerIpc(): void {
 
     ipcMain.handle('auth:login', async (_e, method?: 'inApp' | 'browser') => {
         try {
+            // Default to the user's real browser so an existing session
+            // (including Google/OAuth) is reused — no re-login needed.
             const session =
-                method === 'browser'
-                    ? await authManager.loginWithExternalBrowser()
-                    : await authManager.login();
+                method === 'inApp'
+                    ? await authManager.login()
+                    : await authManager.loginWithExternalBrowser();
             return { status: 'success', session };
         } catch (error) {
             return {

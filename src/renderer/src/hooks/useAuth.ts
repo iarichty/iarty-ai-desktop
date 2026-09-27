@@ -50,7 +50,7 @@ export function useAuth(): UseAuth {
         };
     }, [reload]);
 
-    const login = useCallback(async (method: 'inApp' | 'browser' = 'inApp') => {
+    const login = useCallback(async (method: 'inApp' | 'browser' = 'browser') => {
         setError(null);
         setStatus(null);
         setLoading(true);
