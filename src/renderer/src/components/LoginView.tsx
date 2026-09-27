@@ -7,11 +7,12 @@ import { ThemeToggle } from './ThemeToggle';
 interface Props {
     loading: boolean;
     error: string | null;
+    status?: string | null;
     onLogin: (method?: 'inApp' | 'browser') => void;
 }
 
 /** Full-screen sign-in prompt with an animated backdrop. */
-export function LoginView({ loading, error, onLogin }: Props): JSX.Element {
+export function LoginView({ loading, error, status, onLogin }: Props): JSX.Element {
     return (
         <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-8">
             {/* Ambient animated backdrop */}
@@ -80,6 +81,16 @@ export function LoginView({ loading, error, onLogin }: Props): JSX.Element {
                 <p className="text-center text-xs text-text">
                     A secure IARTY sign-in window opens. Your password never touches this app.
                 </p>
+
+                {status && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="w-full rounded-xl border border-accent/30 bg-accent/10 px-4 py-2 text-center text-xs text-accent"
+                    >
+                        {status}
+                    </motion.div>
+                )}
 
                 {error && (
                     <motion.div

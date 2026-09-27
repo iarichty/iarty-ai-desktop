@@ -22,6 +22,7 @@ export interface IartyBridge {
         login: (method?: 'inApp' | 'browser') => Promise<LoginResult>;
         logout: () => Promise<boolean>;
         onChange: (listener: (payload: AuthSession | null) => void) => () => void;
+        onLog: (listener: (message: string) => void) => () => void;
     };
     ai: {
         getModels: () => Promise<CloudModel[]>;

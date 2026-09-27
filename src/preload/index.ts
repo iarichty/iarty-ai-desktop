@@ -25,6 +25,11 @@ const api: IartyBridge = {
             ipcRenderer.on('auth:changed', handler);
             return () => ipcRenderer.removeListener('auth:changed', handler);
         },
+        onLog: (listener: (message: string) => void) => {
+            const handler = (_e: unknown, message: string): void => listener(message);
+            ipcRenderer.on('auth:log', handler);
+            return () => ipcRenderer.removeListener('auth:log', handler);
+        },
     },
     ai: {
         getModels: () => ipcRenderer.invoke('ai:getModels'),

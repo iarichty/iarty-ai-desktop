@@ -18,7 +18,7 @@
  *
  * Either way the user's password never reaches the app's own logic.
  */
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow, shell, webContents } from 'electron';
 import { createServer, type Server } from 'node:http';
 import { jwtDecode } from 'jwt-decode';
 import { accountApi } from './api';
@@ -26,6 +26,13 @@ import { authSession, sessionRequest } from './http';
 import { persistence } from './store';
 import { ACCOUNT_API_URL, LOOPBACK_HOST, PROTOCOL_SCHEME, SIGNIN_URL } from './config';
 import type { AuthSession, AuthUser } from '@shared/types';
+
+/** Broadcasts a human-readable progress line to any open renderer. */
+function emitLoginLog(message: string): void {
+    for (const wc of webContents.getAllWebContents()) {
+        if (!wc.isDestroyed()) wc.send('auth:log', message);
+    }
+}
 
 interface TokenClaims {
     id: number;
@@ -131,6 +138,7 @@ export class AuthManager {
         const ses = authSession();
         // Start clean so a previous user's cookies don't leak in.
         await ses.clearStorageData({ storages: ['cookies'] });
+        emitLoginLog('Opening the IARTY sign-in window…');
 
         const win = new BrowserWindow({
             width: 480,
@@ -148,32 +156,87 @@ export class AuthManager {
         this.loginWindow = win;
 
         win.loadURL(SIGNIN_URL).catch(() => {
-            /* surfaced via timeout below */
+            emitLoginLog('Could not load the sign-in page. Check your connection.');
         });
+
+        // Inject a short instruction banner so the user knows to complete the
+        // reCAPTCHA. Some SPA re-renders can drop the node, so re-add on load.
+        const injectHint = (): void => {
+            win.webContents
+                .executeJavaScript(
+                    `(function(){
+                        if (document.getElementById('iarty-desktop-hint')) return;
+                        var b = document.createElement('div');
+                        b.id = 'iarty-desktop-hint';
+                        b.textContent = 'Sign in below, tick "I am not a robot", then press Sign In.';
+                        b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
+                          'background:#2563eb;color:#fff;font:600 13px system-ui,sans-serif;' +
+                          'padding:10px 14px;text-align:center;box-shadow:0 1px 6px rgba(0,0,0,.25)';
+                        document.body.appendChild(b);
+                    })()`,
+                )
+                .catch(() => undefined);
+        };
+        win.webContents.on('did-finish-load', injectHint);
+        win.webContents.on('did-navigate', injectHint);
 
         const session = await new Promise<AuthSession | null>((resolve) => {
             let settled = false;
+            let exchanging = false;
             const done = (value: AuthSession | null): void => {
                 if (settled) return;
                 settled = true;
                 clearInterval(poll);
                 clearTimeout(timer);
+                clearTimeout(nudge);
                 resolve(value);
             };
 
-            // Poll the partition cookies for the refresh token, then exchange.
-            const poll = setInterval(async () => {
-                if (win.isDestroyed()) return done(null);
+            // A single attempt: read the refresh cookie and trade it for an
+            // access token. Guarded so overlapping ticks can't double-exchange
+            // (the backend rotates the refresh token on every /token call).
+            const attempt = async (): Promise<void> => {
+                if (exchanging || settled) return;
+                exchanging = true;
                 try {
                     const cookie = await readRefreshCookie();
                     if (!cookie) return;
+                    emitLoginLog('Sign-in detected — issuing your session…');
                     const accessToken = await exchangeToken();
-                    if (!accessToken) return;
+                    if (!accessToken) {
+                        emitLoginLog('Waiting for the session to become available…');
+                        return;
+                    }
                     done(await buildSession(accessToken));
                 } catch {
                     /* keep polling */
+                } finally {
+                    exchanging = false;
                 }
-            }, 900);
+            };
+
+            const poll = setInterval(() => void attempt(), 900);
+
+            // Gentle nudge if the user hasn't finished after a while.
+            const nudge = setTimeout(() => {
+                if (!settled) {
+                    emitLoginLog(
+                        'Still waiting — tick the "I am not a robot" box and press Sign In.',
+                    );
+                }
+            }, 25_000);
+
+            // Kick once immediately in case a session already exists.
+            void attempt();
+
+            // Also try whenever the page navigates away from /signin (the web
+            // app redirects to the dashboard/profile after a successful login).
+            win.webContents.on('did-navigate', (_e, url) => {
+                if (!/\/signin/.test(url)) void attempt();
+            });
+            win.webContents.on('did-navigate-in-page', (_e, url) => {
+                if (!/\/signin/.test(url)) void attempt();
+            });
 
             const timer = setTimeout(() => done(null), 5 * 60 * 1000);
 

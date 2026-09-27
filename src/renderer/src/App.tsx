@@ -15,7 +15,12 @@ export default function App(): JSX.Element {
                     <span className="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
                 </div>
             ) : !auth.session ? (
-                <LoginView loading={auth.loading} error={auth.error} onLogin={auth.login} />
+                <LoginView
+                    loading={auth.loading}
+                    error={auth.error}
+                    status={auth.status}
+                    onLogin={auth.login}
+                />
             ) : (
                 <ChatPanel
                     session={auth.session}

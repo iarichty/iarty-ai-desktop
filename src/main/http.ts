@@ -112,6 +112,18 @@ export async function sessionRequest(
 /** The persistent session partition used for the in-app login window. */
 export const AUTH_PARTITION = 'persist:iarty-auth';
 
+/**
+ * A regular desktop-Chrome user-agent. Electron's default UA advertises
+ * "Electron/…" which some third-party widgets (notably Google reCAPTCHA)
+ * treat with suspicion. Presenting a normal Chrome UA keeps the sign-in page
+ * behaving exactly as it does in a browser.
+ */
+export const DESKTOP_CHROME_UA =
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+    'Chrome/126.0.0.0 Safari/537.36';
+
 export function authSession(): Session {
-    return electronSession.fromPartition(AUTH_PARTITION);
+    const ses = electronSession.fromPartition(AUTH_PARTITION);
+    ses.setUserAgent(DESKTOP_CHROME_UA);
+    return ses;
 }

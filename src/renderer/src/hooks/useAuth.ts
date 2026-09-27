@@ -6,6 +6,7 @@ interface UseAuth {
     session: AuthSession | null;
     loading: boolean;
     error: string | null;
+    status: string | null;
     login: (method?: 'inApp' | 'browser') => Promise<void>;
     logout: () => Promise<void>;
     reload: () => Promise<void>;
@@ -16,6 +17,7 @@ export function useAuth(): UseAuth {
     const [session, setSession] = useState<AuthSession | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [status, setStatus] = useState<string | null>(null);
     const mounted = useRef(true);
 
     const reload = useCallback(async () => {
@@ -35,17 +37,22 @@ export function useAuth(): UseAuth {
     useEffect(() => {
         mounted.current = true;
         void reload();
-        const off = bridge.auth.onChange((payload) => {
+        const offChange = bridge.auth.onChange((payload) => {
             if (mounted.current && payload) setSession(payload);
+        });
+        const offLog = bridge.auth.onLog((message) => {
+            if (mounted.current) setStatus(message);
         });
         return () => {
             mounted.current = false;
-            off();
+            offChange();
+            offLog();
         };
     }, [reload]);
 
     const login = useCallback(async (method: 'inApp' | 'browser' = 'inApp') => {
         setError(null);
+        setStatus(null);
         setLoading(true);
         try {
             const result = (await bridge.auth.login(method)) as LoginResult;
@@ -56,6 +63,7 @@ export function useAuth(): UseAuth {
             }
         } finally {
             setLoading(false);
+            setStatus(null);
         }
     }, []);
 
@@ -64,5 +72,5 @@ export function useAuth(): UseAuth {
         setSession(null);
     }, []);
 
-    return { session, loading, error, login, logout, reload };
+    return { session, loading, error, status, login, logout, reload };
 }
