@@ -128,9 +128,12 @@ function createWindow(): void {
 function registerIpc(): void {
     ipcMain.handle('auth:getSession', () => authManager.getSession());
 
-    ipcMain.handle('auth:login', async () => {
+    ipcMain.handle('auth:login', async (_e, method?: 'inApp' | 'browser') => {
         try {
-            const session = await authManager.login(mainWindow);
+            const session =
+                method === 'browser'
+                    ? await authManager.loginWithExternalBrowser()
+                    : await authManager.login();
             return { status: 'success', session };
         } catch (error) {
             return {

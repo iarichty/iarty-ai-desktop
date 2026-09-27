@@ -19,7 +19,7 @@ import type {
 export interface IartyBridge {
     auth: {
         getSession: () => Promise<AuthSession | null>;
-        login: () => Promise<LoginResult>;
+        login: (method?: 'inApp' | 'browser') => Promise<LoginResult>;
         logout: () => Promise<boolean>;
         onChange: (listener: (payload: AuthSession | null) => void) => () => void;
     };

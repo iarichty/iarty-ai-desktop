@@ -9,6 +9,7 @@
     --color-bg: var(--bg);
     --color-border: var(--border);
     --color-accent: var(--accent);
+    --color-accent-2: var(--accent-2);
 
     --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
     --font-heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -22,7 +23,8 @@
     --surface: #f6f5f8;
     --surface-2: #efedf3;
     --border: #e5e4e7;
-    --accent: #aa3bff;
+    --accent: #2563eb;
+    --accent-2: #6366f1;
     --accent-contrast: #ffffff;
     color-scheme: light;
 }
@@ -34,8 +36,9 @@
     --surface: #141417;
     --surface-2: #1c1c22;
     --border: #2e303a;
-    --accent: #c084fc;
-    --accent-contrast: #0a0a0a;
+    --accent: #3b82f6;
+    --accent-2: #6366f1;
+    --accent-contrast: #ffffff;
     color-scheme: dark;
 }
 

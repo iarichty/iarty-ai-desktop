@@ -1,20 +1,21 @@
 /**
- * Minimal fetch wrapper that stores/replays cookies manually.
+ * Minimal HTTP helpers for the two IARTY backends.
  *
- * The account backend's refresh flow relies on an httpOnly `refreshToken`
- * cookie. In Electron's main process `fetch` (undici) does NOT persist cookies
- * automatically, so we capture `Set-Cookie` and replay it. We only ever talk to
- * our own two backends, so a single shared cookie jar is sufficient.
+ * Two transports are offered:
+ *   - `request()`      plain `fetch` with a hand-rolled cookie jar (headless,
+ *                      used for Bearer-token calls and the refresh fallback).
+ *   - session-backed   Electron's `net` module bound to a BrowserWindow's
+ *                      session, so httpOnly cookies set during an in-app login
+ *                      flow are sent automatically (used by the auth flow).
  */
+import { net, session as electronSession, type Session } from 'electron';
 
+/** Shared cookie jar for the headless `fetch` transport. */
 let cookieJar = new Map<string, string>();
 
-/** Parse a `Set-Cookie` header into name/value pairs and store them. */
 export function storeSetCookie(setCookieHeaders: string[] | undefined): void {
     if (!setCookieHeaders) return;
     for (const header of setCookieHeaders) {
-        // A single header may contain multiple cookies separated by commas, but
-        // `name=value; Attr...` — split on the first `;` to get name=value.
         const firstPart = header.split(';')[0];
         const eq = firstPart.indexOf('=');
         if (eq === -1) continue;
@@ -29,7 +30,9 @@ export function storeSetCookie(setCookieHeaders: string[] | undefined): void {
 }
 
 export function getCookieHeader(): string {
-    return [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+    return [...cookieJar.entries()]
+        .map(([k, v]) => `${k}=${v}`)
+        .join('; ');
 }
 
 export function setCookieHeader(header: string | undefined): void {
@@ -46,15 +49,69 @@ export function clearCookies(): void {
     cookieJar = new Map();
 }
 
-/**
- * Extracts set-cookie values from a fetch Response in a way that works across
- * undici versions (`getSetCookie()` when available, else the raw header).
- */
+/** Reads set-cookie values from a fetch Response across undici versions. */
 export function readSetCookies(res: Response): string[] {
     const headers = res.headers as Headers & { getSetCookie?: () => string[] };
-    if (typeof headers.getSetCookie === 'function') {
-        return headers.getSetCookie();
-    }
+    if (typeof headers.getSetCookie === 'function') return headers.getSetCookie();
     const raw = headers.get('set-cookie');
     return raw ? [raw] : [];
+}
+
+interface NetRequestOptions {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+}
+
+/**
+ * Performs a request through a BrowserWindow session using Electron's `net`
+ * module, so that cookies stored in that session are sent and any `Set-Cookie`
+ * is persisted. Returns the parsed JSON body and status.
+ */
+export async function sessionRequest(
+    ses: Session,
+    url: string,
+    opts: NetRequestOptions = {},
+): Promise<{ status: number; body: unknown }> {
+    return new Promise((resolve, reject) => {
+        const request = net.request({
+            method: opts.method ?? 'GET',
+            url,
+            session: ses,
+            useSessionCookies: true,
+        });
+
+        for (const [key, value] of Object.entries(opts.headers ?? {})) {
+            request.setHeader(key, value);
+        }
+        if (opts.body) request.setHeader('Content-Type', 'application/json');
+
+        let status = 0;
+        let data = '';
+        request.on('response', (response) => {
+            status = response.statusCode;
+            response.on('data', (chunk) => {
+                data += chunk.toString();
+            });
+            response.on('end', () => {
+                let body: unknown = null;
+                try {
+                    body = data ? JSON.parse(data) : null;
+                } catch {
+                    body = data;
+                }
+                resolve({ status, body });
+            });
+        });
+        request.on('error', reject);
+        if (opts.body) request.write(opts.body);
+        request.end();
+    });
+}
+
+/** The persistent session partition used for the in-app login window. */
+export const AUTH_PARTITION = 'persist:iarty-auth';
+
+export function authSession(): Session {
+    return electronSession.fromPartition(AUTH_PARTITION);
 }

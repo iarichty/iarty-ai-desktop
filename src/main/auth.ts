@@ -1,29 +1,30 @@
 /**
  * Authentication manager.
  *
- * Login flow (external browser + loopback):
+ * Two sign-in strategies, tried in order:
  *
- *   1. Start a short-lived HTTP server on 127.0.0.1:<random port>.
- *   2. Open the system browser at the configured web app's `/signin` page with
- *      a `desktop_redirect` query param pointing at the loopback callback.
- *   3. The web app, after a successful login, redirects back to the loopback
- *      URL carrying the access token and/or the shared refresh-token cookie.
- *   4. We capture whichever arrives, exchange it for an access token, build the
- *      session and persist it.
+ * ── 1. In-app browser window (primary, robust) ──────────────────────────────
+ *    Opens a modal BrowserWindow on its own persistent session partition and
+ *    loads the web app's `/signin` page. Because it is a real Chromium
+ *    context, reCAPTCHA works and the httpOnly `refreshToken` cookie is stored
+ *    in that partition. After the user signs in we detect the cookie and
+ *    exchange it for an access token **through the same session**, so the
+ *    cookie is sent automatically. This needs nothing from the web deploy.
  *
- * Because the browser performs the real sign-in, reCAPTCHA and the httpOnly
- * refresh cookie work exactly as they do on the web — the desktop app never
- * handles the user's password.
+ * ── 2. External browser + loopback (fallback) ───────────────────────────────
+ *    Opens the system browser with a `desktop_redirect` param; the web app
+ *    redirects back to a local loopback URL carrying the access token. Used
+ *    when the web app supports the handoff.
  *
- * A custom `iarty://` protocol is registered as a fallback deep link for cases
- * where the loopback server cannot bind.
+ * Either way the user's password never reaches the app's own logic.
  */
 import { BrowserWindow, shell } from 'electron';
 import { createServer, type Server } from 'node:http';
 import { jwtDecode } from 'jwt-decode';
 import { accountApi } from './api';
+import { authSession, sessionRequest } from './http';
 import { persistence } from './store';
-import { LOOPBACK_HOST, PROTOCOL_SCHEME, SIGNIN_URL } from './config';
+import { ACCOUNT_API_URL, LOOPBACK_HOST, PROTOCOL_SCHEME, SIGNIN_URL } from './config';
 import type { AuthSession, AuthUser } from '@shared/types';
 
 interface TokenClaims {
@@ -36,6 +37,8 @@ interface TokenClaims {
     is_blocked?: boolean;
     exp?: number;
 }
+
+const REFRESH_COOKIE = 'refreshToken';
 
 /** Builds a session object from a raw access token by decoding its claims. */
 async function buildSession(accessToken: string): Promise<AuthSession> {
@@ -54,10 +57,206 @@ async function buildSession(accessToken: string): Promise<AuthSession> {
     return { accessToken, user, expire: decoded.exp ?? 0 };
 }
 
+/** Returns the refresh cookie value from a session, if present. */
+async function readRefreshCookie(): Promise<string | null> {
+    const cookies = await authSession().cookies.get({ name: REFRESH_COOKIE });
+    return cookies[0]?.value ?? null;
+}
+
 /**
- * Waits for the browser to hit our loopback callback. Resolves with the
- * captured query params, or null on timeout.
+ * Exchanges the session's refresh cookie for an access token via the account
+ * backend, using Electron's net stack so the cookie is attached automatically.
  */
+async function exchangeToken(): Promise<string | null> {
+    const { status, body } = await sessionRequest(authSession(), `${ACCOUNT_API_URL}/token`);
+    if (status !== 200) return null;
+    const envelope = body as { success?: boolean; data?: { accessToken?: string } };
+    return envelope?.data?.accessToken ?? null;
+}
+
+export class AuthManager {
+    private loopback: Server | null = null;
+    private loginWindow: BrowserWindow | null = null;
+
+    /** Returns the stored session, refreshing the access token if expired. */
+    async getSession(forceRefresh = false): Promise<AuthSession | null> {
+        const existing = persistence.getSession();
+        if (!existing) return null;
+
+        if (!forceRefresh && existing.expire * 1000 > Date.now()) {
+            return existing;
+        }
+
+        // Try to refresh using the in-app session cookies.
+        try {
+            const accessToken = await exchangeToken();
+            if (accessToken) {
+                const session = await buildSession(accessToken);
+                persistence.setSession(session);
+                return session;
+            }
+        } catch {
+            /* fall through */
+        }
+
+        // Fallback to the headless jar (external-browser flow).
+        const cookie = persistence.getRefreshCookie();
+        if (cookie) {
+            accountApi.seedCookie(cookie);
+            try {
+                const accessToken = await accountApi.refreshToken();
+                const session = await buildSession(accessToken);
+                persistence.setSession(session);
+                return session;
+            } catch {
+                /* session is dead */
+            }
+        }
+
+        persistence.clearSession();
+        return null;
+    }
+
+    /**
+     * Interactive login. Opens an in-app window; if the user prefers their
+     * external browser the loopback fallback can be used instead.
+     */
+    async login(): Promise<AuthSession> {
+        return this.loginWithInAppWindow();
+    }
+
+    // ── Strategy 1: in-app window ───────────────────────────────────────────
+
+    private async loginWithInAppWindow(): Promise<AuthSession> {
+        const ses = authSession();
+        // Start clean so a previous user's cookies don't leak in.
+        await ses.clearStorageData({ storages: ['cookies'] });
+
+        const win = new BrowserWindow({
+            width: 480,
+            height: 760,
+            title: 'Sign in to IARTY',
+            autoHideMenuBar: true,
+            parent: undefined,
+            modal: false,
+            webPreferences: {
+                partition: 'persist:iarty-auth',
+                contextIsolation: true,
+                nodeIntegration: false,
+            },
+        });
+        this.loginWindow = win;
+
+        win.loadURL(SIGNIN_URL).catch(() => {
+            /* surfaced via timeout below */
+        });
+
+        const session = await new Promise<AuthSession | null>((resolve) => {
+            let settled = false;
+            const done = (value: AuthSession | null): void => {
+                if (settled) return;
+                settled = true;
+                clearInterval(poll);
+                clearTimeout(timer);
+                resolve(value);
+            };
+
+            // Poll the partition cookies for the refresh token, then exchange.
+            const poll = setInterval(async () => {
+                if (win.isDestroyed()) return done(null);
+                try {
+                    const cookie = await readRefreshCookie();
+                    if (!cookie) return;
+                    const accessToken = await exchangeToken();
+                    if (!accessToken) return;
+                    done(await buildSession(accessToken));
+                } catch {
+                    /* keep polling */
+                }
+            }, 900);
+
+            const timer = setTimeout(() => done(null), 5 * 60 * 1000);
+
+            // If the user closes the window without finishing, bail out.
+            win.on('closed', () => done(null));
+        });
+
+        if (this.loginWindow && !this.loginWindow.isDestroyed()) {
+            this.loginWindow.close();
+        }
+        this.loginWindow = null;
+
+        if (!session) throw new Error('Sign-in was cancelled or timed out. Please try again.');
+        persistence.setSession(session);
+        return session;
+    }
+
+    // ── Strategy 2: external browser + loopback ─────────────────────────────
+
+    async loginWithExternalBrowser(): Promise<AuthSession> {
+        const { server, port, waitForCallback } = await startLoopback();
+        this.loopback = server;
+
+        const redirect = `http://${LOOPBACK_HOST}:${port}/callback`;
+        const loginUrl = `${SIGNIN_URL}?desktop_redirect=${encodeURIComponent(redirect)}`;
+        await shell.openExternal(loginUrl).catch(() => this.openFallbackWindow(loginUrl));
+
+        try {
+            const params = await withTimeout(waitForCallback(), 5 * 60 * 1000);
+            if (!params) throw new Error('Login timed out. Please try again.');
+
+            const accessTokenFromQuery = params.get('access_token') ?? params.get('token');
+            let accessToken = accessTokenFromQuery ?? '';
+            if (!accessToken) accessToken = (await exchangeToken()) ?? '';
+            if (!accessToken) throw new Error('Could not establish a session. Please try again.');
+
+            const session = await buildSession(accessToken);
+            persistence.setSession(session);
+            return session;
+        } finally {
+            this.stopLoopback();
+        }
+    }
+
+    /** Deep-link fallback: `iarty://auth/callback?access_token=...`. */
+    async loginWithDeepLink(deepLinkUrl: string): Promise<AuthSession | null> {
+        try {
+            const url = new URL(deepLinkUrl);
+            if (url.protocol !== `${PROTOCOL_SCHEME}:`) return null;
+            const accessToken =
+                url.searchParams.get('access_token') ?? url.searchParams.get('token');
+            if (!accessToken) return null;
+            const session = await buildSession(accessToken);
+            persistence.setSession(session);
+            return session;
+        } catch {
+            return null;
+        }
+    }
+
+    async logout(): Promise<void> {
+        const session = persistence.getSession();
+        if (session) await accountApi.logout(session.accessToken);
+        await authSession()
+            .clearStorageData({ storages: ['cookies'] })
+            .catch(() => undefined);
+        persistence.clearSession();
+    }
+
+    private openFallbackWindow(loginUrl: string): void {
+        const win = new BrowserWindow({ width: 480, height: 720, title: 'Sign in to IARTY' });
+        void win.loadURL(loginUrl);
+    }
+
+    private stopLoopback(): void {
+        if (this.loopback) {
+            this.loopback.close();
+            this.loopback = null;
+        }
+    }
+}
+
+/** Starts a short-lived loopback server waiting for the web redirect. */
 function startLoopback(): Promise<{
     server: Server;
     port: number;
@@ -75,15 +274,11 @@ function startLoopback(): Promise<{
                 res.writeHead(404).end('Not found');
                 return;
             }
-
-            // The refresh cookie may arrive as a Cookie header (if the web app
-            // sets it for 127.0.0.1) — capture it too.
             const cookieHeader = req.headers.cookie;
             if (cookieHeader) persistence.setRefreshCookie(cookieHeader);
 
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(CLOSE_PAGE_HTML);
-
             resolveCallback(url.searchParams);
         });
 
@@ -91,11 +286,7 @@ function startLoopback(): Promise<{
         server.listen(0, LOOPBACK_HOST, () => {
             const address = server.address();
             if (address && typeof address === 'object') {
-                resolve({
-                    server,
-                    port: address.port,
-                    waitForCallback: () => callbackPromise,
-                });
+                resolve({ server, port: address.port, waitForCallback: () => callbackPromise });
             } else {
                 reject(new Error('Failed to determine loopback port'));
             }
@@ -110,111 +301,6 @@ align-items:center;justify-content:center;height:100vh;margin:0">
 <div style="text-align:center"><h2>Signed in</h2>
 <p>You can close this tab and return to the IARTY Desktop app.</p></div>
 <script>setTimeout(()=>window.close(),800)</script></body></html>`;
-
-export class AuthManager {
-    private loopback: Server | null = null;
-
-    /** Returns the stored session, refreshing the access token if expired. */
-    async getSession(forceRefresh = false): Promise<AuthSession | null> {
-        const existing = persistence.getSession();
-        if (!existing) return null;
-
-        if (!forceRefresh && existing.expire * 1000 > Date.now()) {
-            return existing;
-        }
-
-        // Try to refresh using the persisted cookie.
-        const cookie = persistence.getRefreshCookie();
-        if (cookie) accountApi.seedCookie(cookie);
-
-        try {
-            const accessToken = await accountApi.refreshToken();
-            const session = await buildSession(accessToken);
-            persistence.setSession(session);
-            return session;
-        } catch {
-            // Refresh failed — session is dead.
-            persistence.clearSession();
-            return null;
-        }
-    }
-
-    /** Runs the full interactive login flow. */
-    async login(parent: BrowserWindow | null): Promise<AuthSession> {
-        const { server, port, waitForCallback } = await startLoopback();
-        this.loopback = server;
-
-        const redirect = `http://${LOOPBACK_HOST}:${port}/callback`;
-        const loginUrl = `${SIGNIN_URL}?desktop_redirect=${encodeURIComponent(redirect)}`;
-
-        // Prefer the user's real browser; fall back to an in-app window.
-        const opened = await shell.openExternal(loginUrl).then(
-            () => true,
-            () => false,
-        );
-        if (!opened) {
-            this.openFallbackWindow(loginUrl);
-        }
-
-        try {
-            const params = await withTimeout(waitForCallback(), 5 * 60 * 1000);
-            if (!params) throw new Error('Login timed out. Please try again.');
-
-            const accessTokenFromQuery = params.get('access_token') ?? params.get('token');
-            let accessToken = accessTokenFromQuery ?? '';
-
-            if (!accessToken) {
-                // No token in the URL — rely on the refresh cookie.
-                accessToken = await accountApi.refreshToken();
-            }
-
-            const session = await buildSession(accessToken);
-            persistence.setSession(session);
-            return session;
-        } finally {
-            this.stopLoopback();
-            void parent;
-        }
-    }
-
-    /** Deep-link fallback: `iarty://auth/callback?access_token=...`. */
-    async loginWithDeepLink(deepLinkUrl: string): Promise<AuthSession | null> {
-        try {
-            const url = new URL(deepLinkUrl);
-            if (url.protocol !== `${PROTOCOL_SCHEME}:`) return null;
-            const accessToken = url.searchParams.get('access_token') ?? url.searchParams.get('token');
-            if (!accessToken) return null;
-            const session = await buildSession(accessToken);
-            persistence.setSession(session);
-            return session;
-        } catch {
-            return null;
-        }
-    }
-
-    async logout(): Promise<void> {
-        const session = persistence.getSession();
-        if (session) await accountApi.logout(session.accessToken);
-        persistence.clearSession();
-    }
-
-    private openFallbackWindow(loginUrl: string): void {
-        const win = new BrowserWindow({
-            width: 480,
-            height: 720,
-            title: 'Sign in to IARTY',
-            autoHideMenuBar: true,
-        });
-        void win.loadURL(loginUrl);
-    }
-
-    private stopLoopback(): void {
-        if (this.loopback) {
-            this.loopback.close();
-            this.loopback = null;
-        }
-    }
-}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
     return Promise.race([

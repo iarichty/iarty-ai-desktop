@@ -1,6 +1,7 @@
 /**
- * IARTY logo — the diamond glyph with a centred square.
- * Inline SVG so it scales crisply and can be tinted via the `color` prop.
+ * IARTY logo — a diamond formed by two mirrored chevron strokes with a filled
+ * square at the centre. Inline SVG so it scales crisply and can be tinted via
+ * the `color` prop.
  */
 interface Props {
     size?: number;
@@ -20,12 +21,15 @@ export function Logo({ size = 32, color = 'currentColor', className }: Props): J
             role="img"
             aria-label="IARTY"
         >
-            <path d="M512 156 L 596 240 L 372 464 L 596 688 L 512 772 L 204 464 Z" fill={color} />
             <path
-                d="M660 304 L 728 372 L 860 504 L 620 744 L 552 676 L 724 504 Z"
+                d="M512 168 L 168 512 L 512 856 L 594 774 L 332 512 L 594 250 Z"
                 fill={color}
             />
-            <rect x="442" y="442" width="140" height="140" fill={color} />
+            <path
+                d="M636 292 L 554 374 L 690 510 L 554 646 L 636 728 L 854 510 Z"
+                fill={color}
+            />
+            <rect x="450" y="450" width="124" height="124" fill={color} />
         </svg>
     );
 }

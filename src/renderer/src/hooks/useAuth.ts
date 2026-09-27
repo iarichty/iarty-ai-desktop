@@ -6,7 +6,7 @@ interface UseAuth {
     session: AuthSession | null;
     loading: boolean;
     error: string | null;
-    login: () => Promise<void>;
+    login: (method?: 'inApp' | 'browser') => Promise<void>;
     logout: () => Promise<void>;
     reload: () => Promise<void>;
 }
@@ -44,11 +44,11 @@ export function useAuth(): UseAuth {
         };
     }, [reload]);
 
-    const login = useCallback(async () => {
+    const login = useCallback(async (method: 'inApp' | 'browser' = 'inApp') => {
         setError(null);
         setLoading(true);
         try {
-            const result = (await bridge.auth.login()) as LoginResult;
+            const result = (await bridge.auth.login(method)) as LoginResult;
             if (result.status === 'success') {
                 setSession(result.session);
             } else if (result.status === 'error') {

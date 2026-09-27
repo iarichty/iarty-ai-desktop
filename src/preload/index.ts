@@ -18,7 +18,7 @@ import type { IartyBridge } from '@shared/bridge';
 const api: IartyBridge = {
     auth: {
         getSession: () => ipcRenderer.invoke('auth:getSession') as Promise<AuthSession | null>,
-        login: () => ipcRenderer.invoke('auth:login'),
+        login: (method?: 'inApp' | 'browser') => ipcRenderer.invoke('auth:login', method),
         logout: () => ipcRenderer.invoke('auth:logout'),
         onChange: (listener: (payload: AuthSession | null) => void) => {
             const handler = (_e: unknown, payload: AuthSession | null): void => listener(payload);

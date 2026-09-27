@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { TbBrandGoogle } from 'react-icons/tb';
+import { TbLockOpen } from 'react-icons/tb';
 import { Button } from './Button';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
@@ -7,7 +7,7 @@ import { ThemeToggle } from './ThemeToggle';
 interface Props {
     loading: boolean;
     error: string | null;
-    onLogin: () => void;
+    onLogin: (method?: 'inApp' | 'browser') => void;
 }
 
 /** Full-screen sign-in prompt with an animated backdrop. */
@@ -18,7 +18,7 @@ export function LoginView({ loading, error, onLogin }: Props): JSX.Element {
             <div className="pointer-events-none absolute inset-0">
                 <div className="animate-float-slow absolute -left-24 top-1/4 h-72 w-72 rounded-full bg-accent/20 blur-3xl" />
                 <div
-                    className="animate-float-slow absolute -right-16 bottom-1/4 h-80 w-80 rounded-full bg-accent/10 blur-3xl"
+                    className="animate-float-slow absolute -right-16 bottom-1/4 h-80 w-80 rounded-full bg-accent-2/20 blur-3xl"
                     style={{ animationDelay: '1.7s' }}
                 />
             </div>
@@ -35,7 +35,7 @@ export function LoginView({ loading, error, onLogin }: Props): JSX.Element {
             >
                 <div className="relative grid h-20 w-20 place-items-center">
                     <span className="animate-pulse-ring absolute inset-0 rounded-2xl border border-accent/40" />
-                    <div className="grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent/60 shadow-xl shadow-accent/30">
+                    <div className="grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent-2 shadow-xl shadow-accent/30">
                         <Logo size={44} color="var(--accent-contrast)" />
                     </div>
                 </div>
@@ -50,7 +50,7 @@ export function LoginView({ loading, error, onLogin }: Props): JSX.Element {
 
                 <Button
                     size="lg"
-                    onClick={onLogin}
+                    onClick={() => onLogin('inApp')}
                     disabled={loading}
                     className="w-full"
                     aria-busy={loading}
@@ -58,19 +58,27 @@ export function LoginView({ loading, error, onLogin }: Props): JSX.Element {
                     {loading ? (
                         <>
                             <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            Waiting for browser…
+                            Waiting for sign-in…
                         </>
                     ) : (
                         <>
-                            <TbBrandGoogle className="h-5 w-5" />
+                            <TbLockOpen className="h-5 w-5" />
                             Sign in with IARTY
                         </>
                     )}
                 </Button>
 
+                <button
+                    type="button"
+                    onClick={() => onLogin('browser')}
+                    disabled={loading}
+                    className="text-xs text-text underline-offset-4 transition-colors hover:text-accent hover:underline disabled:opacity-50"
+                >
+                    Or sign in with your browser instead
+                </button>
+
                 <p className="text-center text-xs text-text">
-                    Your browser opens the secure sign-in page. Your password never touches this
-                    app.
+                    A secure IARTY sign-in window opens. Your password never touches this app.
                 </p>
 
                 {error && (
