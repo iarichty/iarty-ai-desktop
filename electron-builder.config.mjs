@@ -48,15 +48,12 @@ export default {
     mac: {
         icon: 'build/icon.png',
         category: 'public.app-category.productivity',
-        // `zip` is a reliable artifact on CI; `dmg` is the friendly installer.
-        target: [
-            { target: 'dmg', arch: ['x64', 'arm64'] },
-            { target: 'zip', arch: ['x64', 'arm64'] },
-        ],
+        // Ship a zip on CI: the DMG step mounts a volume named after
+        // productName ("IARTY AI"), and `hdiutil detach` flakes on the space
+        // on GitHub's macOS runners. A zip is a valid, reliable mac artifact
+        // (extract and drag the .app to /Applications).
+        target: [{ target: 'zip', arch: ['x64', 'arm64'] }],
         artifactName: 'iarty-ai-desktop-${version}-mac-${arch}.${ext}',
-    },
-    dmg: {
-        title: 'IARTY AI ${version}',
     },
     linux: {
         icon: 'build/icon.png',
