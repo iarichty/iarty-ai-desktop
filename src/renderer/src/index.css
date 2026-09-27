@@ -1,0 +1,176 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Design tokens (mirrors the IARTY AI web app) ───────────────────────── */
+@theme {
+    --color-text: var(--text);
+    --color-text-h: var(--text-h);
+    --color-bg: var(--bg);
+    --color-border: var(--border);
+    --color-accent: var(--accent);
+
+    --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+    --font-heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, Consolas, monospace;
+}
+
+:root {
+    --text: #6b6375;
+    --text-h: #08060d;
+    --bg: #ffffff;
+    --surface: #f6f5f8;
+    --surface-2: #efedf3;
+    --border: #e5e4e7;
+    --accent: #aa3bff;
+    --accent-contrast: #ffffff;
+    color-scheme: light;
+}
+
+.dark {
+    --text: #9ca3af;
+    --text-h: #f3f4f6;
+    --bg: #0a0a0a;
+    --surface: #141417;
+    --surface-2: #1c1c22;
+    --border: #2e303a;
+    --accent: #c084fc;
+    --accent-contrast: #0a0a0a;
+    color-scheme: dark;
+}
+
+@layer base {
+    html,
+    body,
+    #root {
+        height: 100%;
+        margin: 0;
+    }
+
+    html {
+        background-color: var(--bg);
+    }
+
+    body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: var(--font-sans);
+        transition:
+            background-color 0.3s,
+            color 0.3s;
+        overflow: hidden;
+    }
+
+    h1,
+    h2,
+    h3 {
+        font-family: var(--font-heading);
+        color: var(--text-h);
+    }
+}
+
+/* ── Entrance animations (tw-animate compatible) ────────────────────────── */
+@keyframes animate-in {
+    from {
+        opacity: var(--tw-enter-opacity, 1);
+        transform: translate3d(
+                var(--tw-enter-translate-x, 0),
+                var(--tw-enter-translate-y, 0),
+                0
+            )
+            scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1));
+    }
+}
+
+.animate-in {
+    animation: animate-in var(--tw-duration, 300ms) var(--tw-ease, cubic-bezier(0.16, 1, 0.3, 1))
+        both;
+}
+.fade-in {
+    --tw-enter-opacity: 0;
+}
+.zoom-in-95 {
+    --tw-enter-scale: 0.95;
+}
+.slide-in-from-bottom-2 {
+    --tw-enter-translate-y: 0.5rem;
+}
+.slide-in-from-bottom-4 {
+    --tw-enter-translate-y: 1rem;
+}
+.slide-in-from-right-4 {
+    --tw-enter-translate-x: 1rem;
+}
+
+/* ── Ambient background bloom (login screen) ────────────────────────────── */
+@keyframes float-slow {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+        transform: translate3d(0, -18px, 0) scale(1.05);
+    }
+}
+.animate-float-slow {
+    animation: float-slow 8s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+    0% {
+        transform: scale(0.9);
+        opacity: 0.6;
+    }
+    70% {
+        transform: scale(1.25);
+        opacity: 0;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+.animate-pulse-ring {
+    animation: pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+/* ── Circle-bloom theme transition (identical to the web app) ───────────── */
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+    overflow: hidden;
+}
+::view-transition-old(root) {
+    z-index: 1;
+}
+::view-transition-new(root) {
+    z-index: 9999;
+}
+.theme-transitioning::view-transition-new(root) {
+    animation: theme-bloom 700ms ease-out;
+}
+@keyframes theme-bloom {
+    from {
+        clip-path: circle(0px at var(--bloom-x) var(--bloom-y));
+    }
+    to {
+        clip-path: circle(var(--bloom-r) at var(--bloom-x) var(--bloom-y));
+    }
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
