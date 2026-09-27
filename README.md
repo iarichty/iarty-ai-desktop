@@ -10,6 +10,23 @@ heavy or private workloads can run for free on the user's machine.
 > renders the streamed responses — it is a black-box consumer of the platform's
 > public API.
 
+## Download & install
+
+Grab the installer for your OS from the
+[**Releases**](https://github.com/iarichty/iarty-ai-desktop/releases) page —
+no build required.
+
+| Platform | Package | How to install |
+| --- | --- | --- |
+| **Windows** | `…-win-x64.exe` | Run the installer (choose a folder, creates desktop + Start-menu shortcuts). |
+| **Linux** | `…-linux-x86_64.AppImage` | `chmod +x` it, then run — portable, no install. |
+| **Linux** | `…-linux-amd64.deb` | `sudo dpkg -i <file>.deb` (or install via your package manager). |
+| **macOS** (Apple Silicon) | `…-mac-arm64.zip` / `.dmg` | Unzip / open, then drag **IARTY AI.app** into Applications. |
+| **macOS** (Intel) | `…-mac-x64.zip` / `.dmg` | Same as above. |
+
+> Builds are **unsigned**. On first launch Windows SmartScreen and macOS
+> Gatekeeper may warn — choose *More info → Run anyway* / right-click → *Open*.
+
 ## Features
 
 - **Browser-based sign-in** — authenticate on the real web app; your password
@@ -107,6 +124,19 @@ npm run typecheck  # tsc for main+preload and renderer
 npm run lint
 npm run dist       # installers into release/<version>
 ```
+
+## Releasing
+
+Releases are built and published automatically by GitHub Actions. Bump the
+`version` in `package.json`, then push a matching tag:
+
+```bash
+npm version patch     # or minor/major — updates package.json + tag
+git push --follow-tags
+```
+
+The [`Release`](.github/workflows/release.yml) workflow builds installers on
+Linux, Windows and macOS and attaches them to the GitHub Release for that tag.
 
 ## Security posture
 
