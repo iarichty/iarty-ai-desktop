@@ -335,6 +335,43 @@ export const parseFlowchart = (raw: string): ParsedFlow => {
     return { steps, transitions };
 };
 
+/**
+ * True when the text looks like it contains (or is still streaming) a
+ * machine-readable PRD/design output payload — with OR without the
+ * ```prd-output fence. Used to keep that JSON out of the chat transcript.
+ */
+export const containsPrdOutput = (raw: string): boolean => {
+    if (!raw) return false;
+    return (
+        raw.includes('```prd-output') ||
+        /"prd_markdown"\s*:/.test(raw) ||
+        /"database_schema"\s*:/.test(raw) ||
+        /"page_flow"\s*:/.test(raw)
+    );
+};
+
+/**
+ * Returns the human-readable part of an assistant turn, stripping the
+ * machine-readable payload (fenced ```prd-output block or a bare JSON object
+ * carrying the PRD keys) so it never renders as raw code in the chat.
+ */
+export const stripPrdPayload = (raw: string): string => {
+    if (!raw) return raw;
+    let text = raw.includes('[READY_TO_GENERATE]')
+        ? raw.split('[READY_TO_GENERATE]')[0]
+        : raw;
+
+    const fenceIdx = text.indexOf('```prd-output');
+    if (fenceIdx !== -1) {
+        return text.slice(0, fenceIdx).trim();
+    }
+    if (containsPrdOutput(text)) {
+        const jsonIdx = text.search(/\{[\s\S]*?"(prd_markdown|database_schema|page_flow)"\s*:/);
+        if (jsonIdx !== -1) text = text.slice(0, jsonIdx);
+    }
+    return text.trim();
+};
+
 export const countUserTurns = (msgs: { role: string; content: string }[]): number =>
     msgs.filter((m) => m.role === 'user' && m.content.trim().length > 0).length;
 

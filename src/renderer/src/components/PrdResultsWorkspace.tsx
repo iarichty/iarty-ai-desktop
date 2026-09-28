@@ -16,6 +16,7 @@ import type { IconType } from 'react-icons';
 import type { PrdDesign, PrdOutputs, PrdOutputTab, ParsedErDiagram, ParsedFlow } from '@/types/prd';
 import { parseErDiagram, parseFlowchart } from '@/lib/prdHelpers';
 import FormattedContent from './FormattedContent';
+import { DatabaseTableView, PageFlowView } from './ArtifactViews';
 
 interface Props {
     outputs: PrdOutputs;
@@ -305,110 +306,6 @@ export default function PrdResultsWorkspace({
                     </div>
                 </main>
             </div>
-        </div>
-    );
-}
-
-/* ── Database schema view ────────────────────────────────────────────────── */
-function DatabaseTableView({ parsed }: { parsed: ParsedErDiagram | null }): JSX.Element {
-    if (!parsed || parsed.tables.length === 0) {
-        return <p className="py-12 text-center text-sm text-text">No database schema was generated.</p>;
-    }
-    return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {parsed.tables.map((table) => (
-                    <motion.div
-                        key={table.name}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="overflow-hidden rounded-2xl border border-border bg-[color:var(--surface)] shadow-sm"
-                    >
-                        <div className="flex items-center gap-2 border-b border-border bg-[color:var(--surface-2)] px-4 py-2.5">
-                            <TbDatabase className="h-4 w-4 text-accent" />
-                            <span className="font-mono text-sm font-bold text-text-h">{table.name}</span>
-                        </div>
-                        <table className="w-full text-left text-xs">
-                            <thead className="text-text">
-                                <tr className="border-b border-border">
-                                    <th className="px-4 py-2 font-semibold uppercase tracking-wide">Column</th>
-                                    <th className="px-4 py-2 font-semibold uppercase tracking-wide">Type</th>
-                                    <th className="px-4 py-2 font-semibold uppercase tracking-wide">Constraints</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {table.columns.map((col) => (
-                                    <tr key={col.name} className="border-b border-border/50 last:border-0">
-                                        <td className="px-4 py-2 font-mono font-medium text-text-h">{col.name}</td>
-                                        <td className="px-4 py-2 font-mono text-accent">{col.type}</td>
-                                        <td className="px-4 py-2 text-text">{col.constraints}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </motion.div>
-                ))}
-            </div>
-
-            {parsed.relationships.length > 0 && (
-                <div className="rounded-2xl border border-border bg-[color:var(--surface)] p-4">
-                    <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-text">
-                        Relationships
-                    </h3>
-                    <ul className="space-y-2">
-                        {parsed.relationships.map((rel, i) => (
-                            <li key={i} className="flex items-center gap-2 font-mono text-xs text-text-h">
-                                <span className="rounded-md bg-[color:var(--surface-2)] px-2 py-0.5">{rel.from}</span>
-                                <span className="text-text">{rel.cardinality}</span>
-                                <span className="rounded-md bg-[color:var(--surface-2)] px-2 py-0.5">{rel.to}</span>
-                                {rel.label && <span className="text-text">· {rel.label}</span>}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-        </div>
-    );
-}
-
-/* ── Page flow view ──────────────────────────────────────────────────────── */
-function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Element {
-    if (!parsed || parsed.steps.length === 0) {
-        return <p className="py-12 text-center text-sm text-text">No page flow was generated.</p>;
-    }
-    return (
-        <div className="space-y-3">
-            {parsed.steps.map((step, i) => (
-                <motion.div
-                    key={step.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    className="flex items-center gap-3 rounded-2xl border border-border bg-[color:var(--surface)] px-4 py-3 shadow-sm"
-                >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 font-mono text-xs font-bold text-accent">
-                        {i + 1}
-                    </span>
-                    <div className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-text-h">
-                            {step.label}
-                        </span>
-                        <span className="font-mono text-[10px] text-text">{step.id}</span>
-                    </div>
-                    {parsed.transitions
-                        .filter((t) => t.from === step.id)
-                        .map((t, j) => (
-                            <span
-                                key={j}
-                                className="ml-auto shrink-0 rounded-full bg-[color:var(--surface-2)] px-2 py-0.5 font-mono text-[10px] text-text"
-                                title={t.condition}
-                            >
-                                → {t.to}
-                                {t.condition ? ` (${t.condition})` : ''}
-                            </span>
-                        ))}
-                </motion.div>
-            ))}
         </div>
     );
 }

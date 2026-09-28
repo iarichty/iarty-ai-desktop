@@ -85,14 +85,19 @@ export function usePrdBuilder(): UsePrdBuilder {
             history: ChatMessage[],
             onDone?: (full: string) => void,
             addPlaceholder = true,
+            invalidateSuggestions = true,
         ): Promise<string | null> => {
             return new Promise((resolve) => {
                 const assistantId = uuid();
 
                 // Invalidate in-flight suggestion streams for the previous turn.
-                suggestReqId.current += 1;
-                setIsSuggesting(false);
-                setSuggestions([]);
+                // A suggest stream must NOT invalidate itself, otherwise its own
+                // request id is bumped and the parsed chips are discarded.
+                if (invalidateSuggestions) {
+                    suggestReqId.current += 1;
+                    setIsSuggesting(false);
+                    setSuggestions([]);
+                }
 
                 if (addPlaceholder) {
                     setMessages((prev) => [
@@ -298,11 +303,18 @@ export function usePrdBuilder(): UsePrdBuilder {
 
     const suggest = useCallback(
         async (model: string, opts?: { silent?: boolean }) => {
+            // The backend needs at least one non-empty assistant turn to base the
+            // suggestions on. Bail out early (with a clear message) if the last
+            // assistant message is missing, failed, or still empty — otherwise the
+            // request returns "No assistant question to suggest answers for."
             const lastAssistant = [...messagesRef.current]
                 .reverse()
                 .find((m) => m.role === 'assistant');
-            if (!lastAssistant || lastAssistant.failed) {
+            if (!lastAssistant || lastAssistant.failed || !lastAssistant.content.trim()) {
                 setSuggestions([]);
+                if (!opts?.silent) {
+                    addNotification('No assistant question to suggest answers for.', 'info');
+                }
                 return;
             }
 
@@ -316,10 +328,13 @@ export function usePrdBuilder(): UsePrdBuilder {
                     '/ai/prd-builder/suggest',
                     {},
                     model,
-                    messagesRef.current.map((m) => ({ role: m.role, content: m.content })),
+                    messagesRef.current
+                        .filter((m) => m.content.trim().length > 0)
+                        .map((m) => ({ role: m.role, content: m.content })),
                     (full) => {
                         accumulated = full;
                     },
+                    false,
                     false,
                 );
                 if (suggestReqId.current !== requestId) return;

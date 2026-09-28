@@ -10,6 +10,10 @@ import {
     TbUpload,
     TbPlus,
     TbUser,
+    TbCircleCheckFilled,
+    TbFileText,
+    TbDatabase,
+    TbRoute,
 } from 'react-icons/tb';
 import type {
     CavemanMode,
@@ -37,7 +41,7 @@ import { SessionList } from './SessionList';
 import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign } from '@/types/prd';
-import { getFileIcon, toIsoNow } from '@/lib/prdHelpers';
+import { containsPrdOutput, getFileIcon, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
 
 interface Props {
     models: UnifiedModel[];
@@ -211,7 +215,13 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     suggestRef.current = prd.suggest;
 
     useEffect(() => {
+        // Only suggest for a COMPLETED assistant turn that actually asked
+        // something. Firing while streaming (empty/partial content) sends a
+        // history with no assistant message and the backend rejects it with
+        // "No assistant question to suggest answers for."
         if (!lastAssistantId || !selected) return;
+        if (prd.isRefining || prd.isGenerating || prd.isSuggesting) return;
+        if (!lastAssistantContent.trim()) return;
         if (
             lastAssistantContent.includes('[READY_TO_GENERATE]') ||
             lastAssistantContent.includes('```prd-output') ||
@@ -220,7 +230,15 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
             return;
         }
         void suggestRef.current(modelCode, { silent: true });
-    }, [lastAssistantId, lastAssistantContent, selected, modelCode]);
+    }, [
+        lastAssistantId,
+        lastAssistantContent,
+        selected,
+        modelCode,
+        prd.isRefining,
+        prd.isGenerating,
+        prd.isSuggesting,
+    ]);
 
     /* ── Actions ────────────────────────────────────────────────────────── */
     const handleSubmit = useCallback(async () => {
@@ -591,6 +609,69 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     );
 }
 
+/* ── PRD generation progress card ────────────────────────────────────────── */
+function PrdStreamProgress({ raw, isDone }: { raw: string; isDone: boolean }): JSX.Element {
+    const hasPrdMarkdown = /"prd_markdown"\s*:/.test(raw);
+    const hasDbSchema = /"database_schema"\s*:/.test(raw);
+    const hasPageFlow = /"page_flow"\s*:/.test(raw);
+    const hasDesign = raw.includes('design_styles');
+
+    const steps = [
+        { label: 'Synthesizing requirements', icon: TbFileText, done: true },
+        { label: 'Drafting PRD document', icon: TbFileText, done: hasPrdMarkdown },
+        { label: 'Designing database schema', icon: TbDatabase, done: hasDbSchema },
+        { label: 'Mapping page flow', icon: TbRoute, done: hasPageFlow },
+    ];
+
+    return (
+        <div className="my-3 max-w-md rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 text-white shadow-xl">
+            <div className="mb-3 flex items-center gap-3">
+                {isDone ? (
+                    <TbCircleCheckFilled className="h-4 w-4 shrink-0 text-emerald-400" />
+                ) : (
+                    <span className="loader h-4 w-4 shrink-0" />
+                )}
+                <span className="text-xs font-bold text-neutral-200">
+                    {isDone ? 'PRD artifacts generated' : 'Generating PRD artifacts...'}
+                </span>
+                {!isDone && hasDesign && (
+                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+                        Design
+                    </span>
+                )}
+            </div>
+            <div className="space-y-2">
+                {steps.map((step) => {
+                    const Icon = step.icon;
+                    return (
+                        <div
+                            key={step.label}
+                            className="flex items-center gap-2.5 text-xs font-medium"
+                        >
+                            {step.done ? (
+                                <TbCircleCheckFilled className="h-4 w-4 shrink-0 text-emerald-400" />
+                            ) : isDone ? (
+                                <Icon className="h-4 w-4 shrink-0 text-neutral-600" />
+                            ) : (
+                                <Icon className="h-4 w-4 shrink-0 animate-pulse text-neutral-500" />
+                            )}
+                            <span
+                                className={
+                                    step.done
+                                        ? 'font-semibold text-neutral-100'
+                                        : 'text-neutral-400'
+                                }
+                            >
+                                {step.label}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 /* ── PRD message bubble ──────────────────────────────────────────────────── */
 function PrdBubble({
     message,
@@ -614,6 +695,13 @@ function PrdBubble({
     const isUser = message.role === 'user';
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(message.content);
+
+    // Never surface the machine-readable PRD/design payload in the transcript:
+    // strip the ```prd-output fence (or bare JSON object) and render a progress
+    // card instead. Without this the raw JSON shows as "weird code", and its
+    // long unbroken lines force a horizontal scroll.
+    const isPrdOutput = !isUser && containsPrdOutput(message.content);
+    const displayContent = isUser ? message.content : stripPrdPayload(message.content);
 
     if (isUser && editing) {
         return (
@@ -653,7 +741,7 @@ function PrdBubble({
 
     return (
         <div
-            className={`group flex gap-4 animate-slideUp ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+            className={`group flex min-w-0 gap-4 animate-slideUp ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
             style={{ animationDelay: `${Math.min(index, 12) * 50}ms` }}
         >
             {isUser ? (
@@ -662,7 +750,7 @@ function PrdBubble({
                 </div>
             ) : null}
 
-            <div className={`flex max-w-[85%] flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+            <div className={`flex min-w-0 max-w-[85%] flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                 {isUser ? (
                     <div className="inline-block rounded-3xl rounded-tr-md border border-accent/40 bg-linear-to-br from-accent to-accent-2 px-5 py-2 text-[color:var(--accent-contrast)] shadow-lg">
                         <span className="whitespace-pre-wrap font-medium leading-relaxed">
@@ -685,8 +773,16 @@ function PrdBubble({
                         Failed to generate a response. {message.content}
                     </div>
                 ) : (
-                    <div className="text-[14px] leading-relaxed text-text-h">
-                        <FormattedContent content={message.content} />
+                    <div className="min-w-0 max-w-full text-[14px] leading-relaxed text-text-h">
+                        {displayContent && (
+                            <FormattedContent content={displayContent} className="min-w-0 break-words" />
+                        )}
+                        {isPrdOutput && (
+                            <PrdStreamProgress
+                                raw={message.content}
+                                isDone={!isStreaming}
+                            />
+                        )}
                     </div>
                 )}
 
