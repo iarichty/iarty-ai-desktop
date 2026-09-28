@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TbPlus } from 'react-icons/tb';
 import type {
     CavemanMode,
-    ChatMessage,
     ChatSessionPayload,
     ChatSettings,
     HistoryMode,
@@ -14,6 +13,7 @@ import { useChat } from '@/hooks/useChat';
 import { useSessions } from '@/hooks/useSessions';
 import { useSessionAutoSave } from '@/hooks/useSessionAutoSave';
 import { deriveTitle, newSessionId } from '@/lib/sessions';
+import { buildChatArchive, downloadBlob, parseChatSession } from '@/lib/sessionTransfer';
 import { useNotification } from '@/context/NotificationContext';
 import MessageBubble from './MessageBubble';
 import ChatHero from './ChatHero';
@@ -201,27 +201,20 @@ export function ChatPanel({
     /* ── Export / import / reset ────────────────────────────────────────── */
     const handleExport = useCallback(async () => {
         if (chat.messages.length === 0) return;
-        const data = { title: 'IARTY AI Chat', exportedAt: new Date().toISOString(), messages: chat.messages };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `iarty-chat-${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        addNotification('Conversation saved successfully!', 'success');
+        try {
+            const blob = await buildChatArchive(chat.messages, new Map());
+            downloadBlob(blob, `iarty-chat-${new Date().toISOString().slice(0, 10)}.zip`);
+            addNotification('Conversation saved successfully as ZIP!', 'success');
+        } catch {
+            addNotification('Failed to export conversation.', 'error');
+        }
     }, [chat.messages, addNotification]);
 
     const importFile = useCallback(
         async (file: File) => {
             try {
-                const text = await file.text();
-                const parsed = JSON.parse(text) as { messages?: ChatMessage[] } | ChatMessage[];
-                const imported = Array.isArray(parsed) ? parsed : parsed.messages;
-                if (!Array.isArray(imported)) throw new Error('Invalid file format');
-                chat.setMessages(imported);
+                const { messages } = await parseChatSession(file);
+                chat.setMessages(messages);
                 const id = newSessionId('chat');
                 setSessionId(id);
                 setActiveSessionId(id);
@@ -389,7 +382,7 @@ export function ChatPanel({
             <input
                 ref={importInputRef}
                 type="file"
-                accept=".json"
+                accept=".json,.zip"
                 onChange={handleImportChange}
                 className="hidden"
             />

@@ -22,6 +22,12 @@ import { usePrdBuilder } from '@/hooks/usePrdBuilder';
 import { useSessions } from '@/hooks/useSessions';
 import { useSessionAutoSave } from '@/hooks/useSessionAutoSave';
 import { deriveTitle, newSessionId } from '@/lib/sessions';
+import {
+    buildPrdArchive,
+    downloadBlob,
+    parsePrdSession,
+    type PrdSessionPackage,
+} from '@/lib/sessionTransfer';
 import { useNotification } from '@/context/NotificationContext';
 import ChatComposer from './ChatComposer';
 import FormattedContent from './FormattedContent';
@@ -227,7 +233,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
 
     const handleExport = useCallback(async () => {
         try {
-            const session = {
+            const session: PrdSessionPackage = {
                 schema_type: 'prd',
                 schema_version: 1,
                 export_date: toIsoNow(),
@@ -242,19 +248,27 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                 outputs: prd.outputs,
                 design: prd.design || undefined,
             };
-            const blob = new Blob([JSON.stringify(session, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
+
+            const filesByIndex = new Map<number, { file: File; name: string; type: string }>();
+            prd.messages.forEach((m, i) => {
+                const src = (m as { file?: { originalFile?: File; name?: string; type?: string } })
+                    .file;
+                if (src?.originalFile) {
+                    filesByIndex.set(i, {
+                        file: src.originalFile,
+                        name: src.name ?? src.originalFile.name,
+                        type: src.type ?? src.originalFile.type,
+                    });
+                }
+            });
+
+            const blob = await buildPrdArchive(session, filesByIndex);
             const safeTitle = (prd.projectTitle || 'prd-session')
                 .replace(/[^a-z0-9-_]+/gi, '-')
                 .toLowerCase();
-            a.download = `${safeTitle}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            addNotification('Session exported successfully', 'success');
+            const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            downloadBlob(blob, `${safeTitle}_${dateStr}.zip`);
+            addNotification('Session exported as ZIP package', 'success');
         } catch {
             addNotification('Failed to export PRD session', 'error');
         }
@@ -263,30 +277,27 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     const handleImport = useCallback(
         async (file: File) => {
             try {
-                const text = await file.text();
-                const session = JSON.parse(text) as {
-                    messages: PrdMessage[];
-                    outputs: { prd_markdown: string; database_schema: string; page_flow: string };
-                    design?: PrdDesign | null;
-                    metadata?: { project_title?: string; status?: PrdSessionStatus };
-                };
+                const { session } = await parsePrdSession(file);
                 prd.loadSession({
-                    messages: session.messages ?? [],
+                    messages: (session.messages ?? []) as PrdMessage[],
                     outputs: session.outputs ?? {
                         prd_markdown: '',
                         database_schema: '',
                         page_flow: '',
                     },
-                    design: session.design ?? null,
+                    design: (session.design ?? null) as PrdDesign | null,
                     projectTitle: session.metadata?.project_title ?? '',
-                    status: session.metadata?.status ?? 'generated',
+                    status: (session.metadata?.status ?? 'generated') as PrdSessionStatus,
                 });
                 const id = newSessionId('prd-builder');
                 setSessionId(id);
                 setActiveSessionId(id);
                 addNotification('Session imported successfully', 'success');
-            } catch {
-                addNotification('Import failed — invalid file', 'error');
+            } catch (err) {
+                addNotification(
+                    err instanceof Error ? err.message : 'Import failed — invalid file',
+                    'error',
+                );
             }
         },
         [prd, addNotification],
@@ -413,7 +424,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     <input
                         ref={importInputRef}
                         type="file"
-                        accept=".json"
+                        accept=".json,.zip"
                         onChange={handleImportChange}
                         className="hidden"
                     />

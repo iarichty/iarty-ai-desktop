@@ -1,7 +1,7 @@
 {
     "name": "iarty-ai-desktop",
     "version": "0.1.0",
-    "description": "IARTY AI Desktop \u2014 cloud features + local LLM (Ollama / OpenAI-compatible).",
+    "description": "IARTY AI Desktop — cloud features + local LLM (Ollama / OpenAI-compatible).",
     "author": {
         "name": "IARTY",
         "email": "iarichty@gmail.com"
@@ -32,6 +32,7 @@
     "dependencies": {
         "electron-store": "^8.2.0",
         "framer-motion": "^12.43.0",
+        "jszip": "^3.10.2",
         "jwt-decode": "^4.0.0",
         "react-icons": "^5.7.0"
     },

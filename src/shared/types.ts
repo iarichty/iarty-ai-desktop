@@ -95,6 +95,21 @@ export interface AiPlan {
     [key: string]: unknown;
 }
 
+/**
+ * Attachment metadata carried on a chat message. Mirrors the web app's
+ * `Message.file` so sessions exported there can be imported here (and vice
+ * versa). `internalPath` points at the entry inside an exported ZIP; `url` is
+ * a renderer-side object URL that is re-created on import.
+ */
+export interface MessageFile {
+    name: string;
+    type: string;
+    url: string;
+    size?: number;
+    /** Path inside the export ZIP, e.g. `files/file_0_1712345678.pdf`. */
+    internalPath?: string;
+}
+
 export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
@@ -102,6 +117,19 @@ export interface ChatMessage {
     timestamp?: string;
     /** True when the assistant turn failed (e.g. out of credits) so the UI can offer a retry. */
     failed?: boolean;
+    /** Optional attachment metadata (web-compatible). The live `File` is kept
+     * separately in a sidecar map when needed and is never serialised. */
+    file?: MessageFile;
+}
+
+/**
+ * The web app's chat export envelope. Older exports are a bare `Message[]`;
+ * `chat.json` inside web ZIPs is the array form. Both are accepted on import.
+ */
+export interface ChatExportEnvelope {
+    title?: string;
+    exportedAt?: string;
+    messages?: ChatMessage[];
 }
 
 export interface CloudChatRequest {
