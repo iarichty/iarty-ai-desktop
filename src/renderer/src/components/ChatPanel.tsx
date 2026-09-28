@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbPlus } from 'react-icons/tb';
 import type {
     CavemanMode,
+    ChatMessage,
+    ChatSessionPayload,
     ChatSettings,
     HistoryMode,
     ReasoningEffort,
     UnifiedModel,
 } from '@shared/types';
 import { useChat } from '@/hooks/useChat';
+import { useSessions } from '@/hooks/useSessions';
+import { useSessionAutoSave } from '@/hooks/useSessionAutoSave';
+import { deriveTitle, newSessionId } from '@/lib/sessions';
 import { useNotification } from '@/context/NotificationContext';
 import MessageBubble from './MessageBubble';
 import ChatHero from './ChatHero';
@@ -17,24 +22,31 @@ import ChatComposer from './ChatComposer';
 import NeuralNetworkCanvas from './NeuralNetworkCanvas';
 import RoleSelectionModal from './RoleSelectionModal';
 import FeatureSelectionModal from './FeatureSelectionModal';
-import { ModelPicker } from './ModelPicker';
+import { SessionList } from './SessionList';
+import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import type { RoleTemplate } from '@/data/roles';
-import type { ChatMessage } from '@shared/types';
 
 interface Props {
     models: UnifiedModel[];
     selected: UnifiedModel | null;
-    onSelect: (model: UnifiedModel) => void;
     onCloudUsed: () => void;
+    autoSave?: boolean;
 }
 
 /**
  * Full chat experience, mirroring the web app's `chat.tsx`: a hero empty state
  * with the neural backdrop, markdown message bubbles, a sticky composer, role &
- * feature pickers, voice input, and export/import/reset.
+ * feature pickers, voice input, and export/import/reset. Every conversation is
+ * also auto-saved to disk (see the `sessions` bridge) with a browsable history.
  */
-export function ChatPanel({ models, selected, onSelect, onCloudUsed }: Props): JSX.Element {
+export function ChatPanel({
+    models,
+    selected,
+    onCloudUsed,
+    autoSave = true,
+}: Props): JSX.Element {
+    const sessions = useSessions('chat');
     const chat = useChat();
     const { addNotification } = useNotification();
 
@@ -51,12 +63,70 @@ export function ChatPanel({ models, selected, onSelect, onCloudUsed }: Props): J
         cavemanMode: 'off',
         reasoningEffort: 'disabled',
     });
+    /** Id of the on-disk session backing this conversation (null = unsaved). */
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
     const importInputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<SpeechRecognition | null>(null);
 
     const model = models.find((m) => m.id === selected?.id)?.meta;
     const isEmpty = chat.messages.length === 0;
+
+    /* ── Local session persistence ──────────────────────────────────────── */
+    const firstUserText = chat.messages.find((m) => m.role === 'user')?.content ?? '';
+    const sessionTitle = useMemo(
+        () => deriveTitle(firstUserText, 'New chat'),
+        [firstUserText],
+    );
+    const sessionPayload = useMemo<ChatSessionPayload | null>(
+        () =>
+            chat.messages.length > 0
+                ? { messages: chat.messages, modelId: selected?.id }
+                : null,
+        [chat.messages, selected?.id],
+    );
+
+    useSessionAutoSave<ChatSessionPayload>({
+        payload: sessionPayload,
+        title: sessionTitle,
+        id: sessionId,
+        enabled: autoSave,
+        onSave: (id, title, payload) => void sessions.save({ id, title, payload }),
+    });
+
+    // Assign a fresh id the moment the first turn lands.
+    useEffect(() => {
+        if (chat.messages.length > 0 && !sessionId) {
+            const id = newSessionId('chat');
+            setSessionId(id);
+            setActiveSessionId(id);
+        }
+    }, [chat.messages.length, sessionId]);
+
+    const handleOpenSession = useCallback(
+        async (id: string) => {
+            const stored = await sessions.load(id);
+            if (!stored) {
+                addNotification('Could not open that session.', 'error');
+                return;
+            }
+            const payload = stored.payload as ChatSessionPayload;
+            chat.setMessages(payload.messages ?? []);
+            setSessionId(stored.id);
+            setActiveSessionId(stored.id);
+            addNotification('Conversation restored', 'success');
+        },
+        [sessions, chat, addNotification],
+    );
+
+    const handleNewSession = useCallback(() => {
+        chat.clear();
+        setSessionId(null);
+        setActiveSessionId(null);
+        setPrompt('');
+        setAttachedFile(null);
+    }, [chat]);
 
     /* ── Speech recognition ─────────────────────────────────────────────── */
     useEffect(() => {
@@ -152,6 +222,9 @@ export function ChatPanel({ models, selected, onSelect, onCloudUsed }: Props): J
                 const imported = Array.isArray(parsed) ? parsed : parsed.messages;
                 if (!Array.isArray(imported)) throw new Error('Invalid file format');
                 chat.setMessages(imported);
+                const id = newSessionId('chat');
+                setSessionId(id);
+                setActiveSessionId(id);
                 addNotification('Conversation imported successfully!', 'success');
             } catch {
                 addNotification('Failed to import conversation. Invalid file format.', 'error');
@@ -173,6 +246,8 @@ export function ChatPanel({ models, selected, onSelect, onCloudUsed }: Props): J
         chat.clear();
         setAttachedFile(null);
         setPrompt('');
+        setSessionId(null);
+        setActiveSessionId(null);
     }, [chat]);
 
     const handleAttachFile = useCallback((file: File) => {
@@ -217,15 +292,24 @@ export function ChatPanel({ models, selected, onSelect, onCloudUsed }: Props): J
 
     return (
         <div className="relative flex h-full flex-col">
-            {/* Toolbar */}
-            <div className="flex items-center gap-3 border-b border-border px-5 py-2.5">
-                <ModelPicker models={models} selected={selected} onSelect={onSelect} />
-                <div className="flex-1" />
+            {/* Chat session controls live in the navbar; model picker is global. */}
+            <NavbarPortal>
+                <SessionList
+                    sessions={sessions.sessions}
+                    loading={sessions.loading}
+                    activeId={activeSessionId}
+                    onOpen={(id) => void handleOpenSession(id)}
+                    onRename={(id, title) => void sessions.rename(id, title)}
+                    onDelete={(id) => void sessions.remove(id)}
+                    onNew={handleNewSession}
+                    onClearAll={() => void sessions.clearAll()}
+                    label="Chats"
+                />
                 <Button variant="outline" size="sm" onClick={handleReset}>
                     <TbPlus className="h-4 w-4" />
                     New chat
                 </Button>
-            </div>
+            </NavbarPortal>
 
             {chat.error && (
                 <div className="mx-5 mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">

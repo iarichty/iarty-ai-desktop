@@ -5,6 +5,7 @@ import type { AppSettings } from '@shared/types';
 const FALLBACK: AppSettings = {
     localProvider: { kind: 'ollama', baseUrl: 'http://localhost:11434', apiKey: '' },
     defaultModelId: '',
+    autoSaveSessions: true,
 };
 
 /** Loads and persists app settings via the main process. */

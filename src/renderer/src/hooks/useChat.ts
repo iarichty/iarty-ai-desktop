@@ -42,12 +42,14 @@ const now = (): string => new Date().toISOString();
  * `chat:stream` IPC channel and are appended to the trailing assistant message.
  * Mirrors the web app's message flow, including edit/regenerate support.
  */
-export function useChat(): UseChat {
+export function useChat(onCompleted?: () => void): UseChat {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [streaming, setStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const activeRequest = useRef<string | null>(null);
     const messagesRef = useRef<ChatMessage[]>([]);
+    const onCompletedRef = useRef(onCompleted);
+    onCompletedRef.current = onCompleted;
 
     useEffect(() => {
         messagesRef.current = messages;
@@ -73,6 +75,7 @@ export function useChat(): UseChat {
                 } else if (event.type === 'done') {
                     setStreaming(false);
                     activeRequest.current = null;
+                    onCompletedRef.current?.();
                 } else if (event.type === 'error') {
                     setError(event.message);
                     setMessages((prev) => {

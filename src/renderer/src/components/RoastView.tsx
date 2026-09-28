@@ -3,16 +3,13 @@ import { TbBrandLinkedin, TbBrandInstagram, TbBrandTiktok } from 'react-icons/tb
 import type { IconType } from 'react-icons';
 import type { FeatureId, UnifiedModel } from '@shared/types';
 import { useFeatureStream } from '@/hooks/useFeatureStream';
-import { ModelPicker } from './ModelPicker';
 import { Composer } from './Composer';
 import { OutputPanel } from './OutputPanel';
 import FeatureHero from './FeatureHero';
 
 interface Props {
     feature: Extract<FeatureId, 'linkedin-roast' | 'ig-roast' | 'tiktok-roast'>;
-    models: UnifiedModel[];
     selected: UnifiedModel | null;
-    onSelect: (model: UnifiedModel) => void;
 }
 
 interface Meta {
@@ -51,7 +48,7 @@ const META: Record<Props['feature'], Meta> = {
  * Roast view — one component serves LinkedIn, Instagram and TikTok, matching
  * the web app's `/ai/*-roast` endpoints (which stream a roast + optimisation).
  */
-export function RoastView({ feature, models, selected, onSelect }: Props): JSX.Element {
+export function RoastView({ feature, selected }: Props): JSX.Element {
     const stream = useFeatureStream();
     const [input, setInput] = useState('');
     const meta = META[feature];
@@ -70,7 +67,6 @@ export function RoastView({ feature, models, selected, onSelect }: Props): JSX.E
     return (
         <div className="flex h-full flex-col">
             <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-2.5">
-                <ModelPicker models={models} selected={selected} onSelect={onSelect} />
                 <span className="text-xs text-text">{meta.hint}</span>
             </div>
 

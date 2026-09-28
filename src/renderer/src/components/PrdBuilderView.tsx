@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     TbBlocks,
@@ -11,14 +11,24 @@ import {
     TbPlus,
     TbUser,
 } from 'react-icons/tb';
-import type { CavemanMode, HistoryMode, ReasoningEffort, UnifiedModel } from '@shared/types';
+import type {
+    CavemanMode,
+    HistoryMode,
+    PrdSessionPayload,
+    ReasoningEffort,
+    UnifiedModel,
+} from '@shared/types';
 import { usePrdBuilder } from '@/hooks/usePrdBuilder';
+import { useSessions } from '@/hooks/useSessions';
+import { useSessionAutoSave } from '@/hooks/useSessionAutoSave';
+import { deriveTitle, newSessionId } from '@/lib/sessions';
 import { useNotification } from '@/context/NotificationContext';
-import { ModelPicker } from './ModelPicker';
 import ChatComposer from './ChatComposer';
 import FormattedContent from './FormattedContent';
 import SuggestionChips from './SuggestionChips';
 import PrdResultsWorkspace from './PrdResultsWorkspace';
+import { SessionList } from './SessionList';
+import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign } from '@/types/prd';
 import { getFileIcon, toIsoNow } from '@/lib/prdHelpers';
@@ -26,7 +36,7 @@ import { getFileIcon, toIsoNow } from '@/lib/prdHelpers';
 interface Props {
     models: UnifiedModel[];
     selected: UnifiedModel | null;
-    onSelect: (model: UnifiedModel) => void;
+    autoSave?: boolean;
 }
 
 const IDEA_CHIPS = [
@@ -42,8 +52,9 @@ const IDEA_CHIPS = [
  * `/prd-builder` page: hero empty state, stage header, streaming markdown
  * transcript, suggestion chips and a full results workspace.
  */
-export function PrdBuilderView({ models, selected, onSelect }: Props): JSX.Element {
+export function PrdBuilderView({ models, selected, autoSave = true }: Props): JSX.Element {
     const prd = usePrdBuilder();
+    const sessions = useSessions('prd-builder');
     const { addNotification } = useNotification();
 
     const [prompt, setPrompt] = useState('');
@@ -51,6 +62,8 @@ export function PrdBuilderView({ models, selected, onSelect }: Props): JSX.Eleme
     const [showResults, setShowResults] = useState(false);
     const [panelTab, setPanelTab] = useState<PrdOutputTab>('prd');
     const [isListening, setIsListening] = useState(false);
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [settings, setSettings] = useState<{
         historyMode: HistoryMode;
         historyCustomCount: number;
@@ -77,6 +90,72 @@ export function PrdBuilderView({ models, selected, onSelect }: Props): JSX.Eleme
     const canGenerate = !prd.isRefining && !prd.isGenerating;
     const canGenerateDesign =
         !prd.design && !prd.isDesigning && !prd.isRefining && !prd.isGenerating && hasOutputs;
+
+    /* ── Local session auto-save ────────────────────────────────────────── */
+    const firstUserText = prd.messages.find((m) => m.role === 'user')?.content ?? '';
+    const sessionTitle = useMemo(
+        () => deriveTitle(prd.projectTitle || firstUserText, 'PRD session'),
+        [prd.projectTitle, firstUserText],
+    );
+    const sessionPayload = useMemo<PrdSessionPayload | null>(
+        () =>
+            prd.messages.length > 0
+                ? {
+                      messages: prd.messages,
+                      outputs: prd.outputs,
+                      design: prd.design,
+                      projectTitle: prd.projectTitle,
+                      status: prd.status === 'idle' ? 'refining' : prd.status,
+                  }
+                : null,
+        [prd.messages, prd.outputs, prd.design, prd.projectTitle, prd.status],
+    );
+
+    useSessionAutoSave<PrdSessionPayload>({
+        payload: sessionPayload,
+        title: sessionTitle,
+        id: sessionId,
+        enabled: autoSave,
+        onSave: (id, t, p) => void sessions.save({ id, title: t, payload: p }),
+    });
+
+    useEffect(() => {
+        if (prd.messages.length > 0 && !sessionId) {
+            const id = newSessionId('prd-builder');
+            setSessionId(id);
+            setActiveSessionId(id);
+        }
+    }, [prd.messages.length, sessionId]);
+
+    const handleOpenSession = useCallback(
+        async (id: string) => {
+            const stored = await sessions.load(id);
+            if (!stored) {
+                addNotification('Could not open that session.', 'error');
+                return;
+            }
+            const p = stored.payload as PrdSessionPayload;
+            prd.loadSession({
+                messages: (p.messages ?? []) as PrdMessage[],
+                outputs: p.outputs,
+                design: (p.design ?? null) as PrdDesign | null,
+                projectTitle: p.projectTitle,
+                status: (p.status ?? 'refining') as PrdSessionStatus,
+            });
+            setSessionId(stored.id);
+            setActiveSessionId(stored.id);
+            addNotification('Session restored', 'success');
+        },
+        [sessions, prd, addNotification],
+    );
+
+    const handleNewSession = useCallback(() => {
+        prd.reset();
+        setPrompt('');
+        setShowResults(false);
+        setSessionId(null);
+        setActiveSessionId(null);
+    }, [prd]);
 
     /* ── Speech ─────────────────────────────────────────────────────────── */
     useEffect(() => {
@@ -202,6 +281,9 @@ export function PrdBuilderView({ models, selected, onSelect }: Props): JSX.Eleme
                     projectTitle: session.metadata?.project_title ?? '',
                     status: session.metadata?.status ?? 'generated',
                 });
+                const id = newSessionId('prd-builder');
+                setSessionId(id);
+                setActiveSessionId(id);
                 addNotification('Session imported successfully', 'success');
             } catch {
                 addNotification('Import failed — invalid file', 'error');
@@ -281,12 +363,27 @@ export function PrdBuilderView({ models, selected, onSelect }: Props): JSX.Eleme
                 />
             )}
 
+            <NavbarPortal>
+                <SessionList
+                    sessions={sessions.sessions}
+                    loading={sessions.loading}
+                    activeId={activeSessionId}
+                    onOpen={(id) => void handleOpenSession(id)}
+                    onRename={(id, t) => void sessions.rename(id, t)}
+                    onDelete={(id) => void sessions.remove(id)}
+                    onNew={handleNewSession}
+                    onClearAll={() => void sessions.clearAll()}
+                    label="Sessions"
+                />
+                <Button variant="outline" size="sm" onClick={handleNewSession}>
+                    <TbPlus className="h-4 w-4" />
+                    New
+                </Button>
+            </NavbarPortal>
+
             <div className="relative flex h-full flex-col">
                 {/* Toolbar */}
                 <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-2.5">
-                    <ModelPicker models={models} selected={selected} onSelect={onSelect} />
-                    <div className="flex-1" />
-
                     {canGenerate && (
                         <Button size="sm" onClick={() => void prd.generate(modelCode)}>
                             <TbWand className="h-4 w-4" />
@@ -311,6 +408,8 @@ export function PrdBuilderView({ models, selected, onSelect }: Props): JSX.Eleme
                         </Button>
                     )}
 
+                    <div className="flex-1" />
+
                     <input
                         ref={importInputRef}
                         type="file"
@@ -320,20 +419,11 @@ export function PrdBuilderView({ models, selected, onSelect }: Props): JSX.Eleme
                     />
                     <Button variant="ghost" size="sm" onClick={() => importInputRef.current?.click()}>
                         <TbUpload className="h-4 w-4" />
+                        Import
                     </Button>
                     <Button variant="ghost" size="sm" onClick={handleExport}>
                         <TbArchive className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                            prd.reset();
-                            setPrompt('');
-                        }}
-                    >
-                        <TbPlus className="h-4 w-4" />
-                        Reset
+                        Export
                     </Button>
                 </div>
 

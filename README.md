@@ -36,6 +36,11 @@ no build required.
   credits).
 - **Local models** — auto-detect and chat with Ollama or any OpenAI-compatible
   server on your machine, unmetered.
+- **Local session history** — chat, PRD Builder, Minutes and Study sessions are
+  auto-saved to your computer (electron-store) and browsable from a history
+  menu in the navbar — rename, reopen or delete any session, all offline.
+- **Profile & navbar** — model selection, provider settings and account live in
+  a clean floating navbar + Profile view.
 - **Live credit badge** — always know what's left on your plan.
 - **Light & dark themes** with an animated circle-bloom transition.
 

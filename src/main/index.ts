@@ -24,7 +24,7 @@ import {
     startLocalChat,
     startStudyQuiz,
 } from './chat';
-import { persistence } from './store';
+import { persistence, sessionStore } from './store';
 import { PROTOCOL_SCHEME } from './config';
 import type {
     AppSettings,
@@ -32,6 +32,8 @@ import type {
     LocalChatRequest,
     LocalProviderKind,
     FeatureStreamRequest,
+    SessionFeature,
+    StoredSession,
 } from '@shared/types';
 
 /**
@@ -205,6 +207,31 @@ function registerIpc(): void {
     ipcMain.handle('settings:set', (_e, settings: AppSettings) => {
         persistence.setSettings(settings);
         return persistence.getSettings();
+    });
+
+    // ── Local session history ────────────────────────────────────────────
+    ipcMain.handle('sessions:list', (_e, feature?: SessionFeature) => sessionStore.list(feature));
+    ipcMain.handle('sessions:get', (_e, id: string) => sessionStore.get(id));
+    ipcMain.handle(
+        'sessions:save',
+        (
+            _e,
+            session: {
+                id: string;
+                feature: SessionFeature;
+                title: string;
+                payload: unknown;
+                createdAt?: string;
+            },
+        ) => sessionStore.save(session) as StoredSession,
+    );
+    ipcMain.handle('sessions:rename', (_e, id: string, title: string) =>
+        sessionStore.rename(id, title),
+    );
+    ipcMain.handle('sessions:delete', (_e, id: string) => sessionStore.remove(id));
+    ipcMain.handle('sessions:clear', (_e, feature?: SessionFeature) => {
+        sessionStore.clear(feature);
+        return true;
     });
 }
 

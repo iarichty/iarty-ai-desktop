@@ -7,10 +7,12 @@ interface Props {
     models: UnifiedModel[];
     selected: UnifiedModel | null;
     onSelect: (model: UnifiedModel) => void;
+    /** Compact pill styling for the floating navbar. */
+    compact?: boolean;
 }
 
 /** Dropdown grouping cloud and local models, with animated reveal. */
-export function ModelPicker({ models, selected, onSelect }: Props): JSX.Element {
+export function ModelPicker({ models, selected, onSelect, compact = false }: Props): JSX.Element {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -30,7 +32,11 @@ export function ModelPicker({ models, selected, onSelect }: Props): JSX.Element 
             <button
                 type="button"
                 onClick={() => setOpen((o) => !o)}
-                className="flex w-64 items-center justify-between gap-2 rounded-xl border border-border bg-[color:var(--surface)] px-3 py-2 text-left text-sm text-text-h transition-colors hover:border-accent/60"
+                className={
+                    compact
+                        ? 'flex max-w-[12rem] items-center justify-between gap-2 rounded-full border border-border bg-[color:var(--surface-2)] px-3 py-1.5 text-left text-xs text-text-h transition-colors hover:border-accent/60'
+                        : 'flex w-64 items-center justify-between gap-2 rounded-xl border border-border bg-[color:var(--surface)] px-3 py-2 text-left text-sm text-text-h transition-colors hover:border-accent/60'
+                }
             >
                 <span className="flex items-center gap-2 truncate">
                     {selected?.source === 'local' ? (
@@ -52,7 +58,7 @@ export function ModelPicker({ models, selected, onSelect }: Props): JSX.Element 
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -6, scale: 0.98 }}
                         transition={{ duration: 0.15, ease: 'easeOut' }}
-                        className="absolute z-20 mt-1 max-h-80 w-72 overflow-y-auto rounded-xl border border-border bg-[color:var(--surface)] p-1 shadow-2xl"
+                        className="absolute right-0 z-20 mt-1 max-h-80 w-72 overflow-y-auto rounded-xl border border-border bg-[color:var(--surface)] p-1 shadow-2xl"
                     >
                         {cloud.length > 0 && (
                             <Group

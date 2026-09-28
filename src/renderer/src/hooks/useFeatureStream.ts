@@ -17,6 +17,8 @@ interface UseFeatureStream {
     }) => Promise<void>;
     stop: () => void;
     reset: () => void;
+    /** Replace the accumulated output (used when restoring a saved session). */
+    setContent: (value: string) => void;
 }
 
 /**
@@ -100,5 +102,10 @@ export function useFeatureStream(): UseFeatureStream {
         setError(null);
     }, [stop]);
 
-    return { content, streaming, error, run, runStudyQuiz, stop, reset };
+    const replaceContent = useCallback((value: string) => {
+        setError(null);
+        setContent(value);
+    }, []);
+
+    return { content, streaming, error, run, runStudyQuiz, stop, reset, setContent: replaceContent };
 }

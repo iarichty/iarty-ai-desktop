@@ -15,6 +15,9 @@ import type {
     LoginResult,
     StreamEvent,
     FeatureStreamRequest,
+    SessionFeature,
+    SessionSummary,
+    StoredSession,
 } from './types';
 
 export interface IartyBridge {
@@ -62,5 +65,23 @@ export interface IartyBridge {
     settings: {
         get: () => Promise<AppSettings>;
         set: (settings: AppSettings) => Promise<AppSettings>;
+    };
+    /**
+     * Local, on-disk session history for the rich features (chat, PRD,
+     * minutes, study). Backed by electron-store in the main process.
+     */
+    sessions: {
+        list: (feature?: SessionFeature) => Promise<SessionSummary[]>;
+        get: (id: string) => Promise<StoredSession | null>;
+        save: (session: {
+            id: string;
+            feature: SessionFeature;
+            title: string;
+            payload: unknown;
+            createdAt?: string;
+        }) => Promise<StoredSession>;
+        rename: (id: string, title: string) => Promise<boolean>;
+        remove: (id: string) => Promise<boolean>;
+        clear: (feature?: SessionFeature) => Promise<boolean>;
     };
 }

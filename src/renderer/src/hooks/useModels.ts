@@ -12,6 +12,7 @@ import type {
 const FALLBACK_SETTINGS: AppSettings = {
     localProvider: { kind: 'ollama', baseUrl: 'http://localhost:11434', apiKey: '' },
     defaultModelId: '',
+    autoSaveSessions: true,
 };
 
 interface UseModels {

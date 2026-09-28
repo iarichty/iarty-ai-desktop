@@ -9,13 +9,14 @@ import type {
 } from '@shared/types';
 import { useModels, usePlan } from '@/hooks/useModels';
 import { Sidebar } from './Sidebar';
-import { TopBar } from './TopBar';
+import { Navbar } from './Navbar';
 import { ChatPanel } from './ChatPanel';
 import { PrdBuilderView } from './PrdBuilderView';
 import { MinutesView } from './MinutesView';
 import { StudyView } from './StudyView';
 import { RoastView } from './RoastView';
 import { SettingsPanel } from './SettingsPanel';
+import { ProfileView } from './ProfileView';
 
 interface Props {
     session: AuthSession;
@@ -24,98 +25,103 @@ interface Props {
     onLogout: () => void;
 }
 
-const TITLES: Record<FeatureId, string> = {
-    chat: 'AI Chat',
-    'prd-builder': 'PRD Builder',
-    minutes: 'Minutes',
-    study: 'Study',
-    'linkedin-roast': 'LinkedIn Roast',
-    'ig-roast': 'Instagram Roast',
-    'tiktok-roast': 'TikTok Roast',
-};
+/** A view is either one of the features or the full-screen Profile page. */
+type View = FeatureId | 'profile';
 
 /**
  * App shell — the desktop mirror of the web `MainLayout`. Renders the floating
- * capsule sidebar, a shared top bar, and the active feature view.
+ * capsule sidebar for feature navigation, the floating pill navbar (brand,
+ * credits, avatar menu), and the active feature or profile view.
  */
 export function MainLayout({ session, settings, onSaveSettings, onLogout }: Props): JSX.Element {
     const { models, refreshLocal } = useModels(true, settings);
     const plan = usePlan(true);
-    const [feature, setFeature] = useState<FeatureId>('chat');
+    const [view, setView] = useState<View>('chat');
     const [selected, setSelected] = useState<UnifiedModel | null>(null);
     const [showSettings, setShowSettings] = useState(false);
 
     useEffect(() => {
         if (selected || models.length === 0) return;
-        const preferred = models.find((m) => m.source === 'local') ?? models[0];
-        setSelected(preferred);
-    }, [models, selected]);
+        const preferred = models.find((m) => m.id === settings.defaultModelId);
+        const fallback = models.find((m) => m.source === 'local') ?? models[0];
+        setSelected(preferred ?? fallback);
+    }, [models, selected, settings.defaultModelId]);
 
     const probe = (kind: LocalProviderKind, baseUrl: string, apiKey?: string): Promise<void> =>
         refreshLocal(kind, baseUrl, apiKey);
 
+    const isProfile = view === 'profile';
+
     return (
         <div className="flex h-full flex-col bg-bg">
-            <Sidebar active={feature} onSelect={setFeature} />
+            {!isProfile && <Sidebar active={view as FeatureId} onSelect={setView} />}
 
-            {/* Offset content to leave room for the floating capsule sidebar */}
-            <div className="flex h-full flex-col md:pl-24">
-                <TopBar
-                    session={session}
-                    plan={plan}
-                    title={TITLES[feature]}
-                    onOpenSettings={() => setShowSettings(true)}
-                    onLogout={onLogout}
-                />
+            <Navbar
+                session={session}
+                plan={plan}
+                models={models}
+                selected={selected}
+                onSelectModel={setSelected}
+                onOpenProfile={() => setView('profile')}
+                onOpenSettings={() => setShowSettings(true)}
+                onLogout={onLogout}
+            />
 
-                <div className="min-h-0 flex-1">
+            <div className={`flex h-full flex-col ${isProfile ? '' : 'md:pl-24'}`}>
+                <div className={`min-h-0 flex-1 ${isProfile ? '' : 'pt-16'}`}>
                     <AnimatePresence mode="wait">
                         <motion.div
-                            key={feature}
+                            key={view}
                             initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -8 }}
                             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                             className="h-full"
                         >
-                            {feature === 'chat' && (
+                            {view === 'profile' && (
+                                <ProfileView
+                                    session={session}
+                                    settings={settings}
+                                    models={models}
+                                    selected={selected}
+                                    onSelectModel={setSelected}
+                                    onSaveSettings={onSaveSettings}
+                                    onProbe={probe}
+                                    plan={plan}
+                                    onClose={() => setView('chat')}
+                                />
+                            )}
+                            {view === 'chat' && (
                                 <ChatPanel
                                     models={models}
                                     selected={selected}
-                                    onSelect={setSelected}
                                     onCloudUsed={plan.refresh}
+                                    autoSave={settings.autoSaveSessions}
                                 />
                             )}
-                            {feature === 'prd-builder' && (
+                            {view === 'prd-builder' && (
                                 <PrdBuilderView
                                     models={models}
                                     selected={selected}
-                                    onSelect={setSelected}
+                                    autoSave={settings.autoSaveSessions}
                                 />
                             )}
-                            {feature === 'minutes' && (
+                            {view === 'minutes' && (
                                 <MinutesView
-                                    models={models}
                                     selected={selected}
-                                    onSelect={setSelected}
+                                    autoSave={settings.autoSaveSessions}
                                 />
                             )}
-                            {feature === 'study' && (
+                            {view === 'study' && (
                                 <StudyView
-                                    models={models}
                                     selected={selected}
-                                    onSelect={setSelected}
+                                    autoSave={settings.autoSaveSessions}
                                 />
                             )}
-                            {(feature === 'linkedin-roast' ||
-                                feature === 'ig-roast' ||
-                                feature === 'tiktok-roast') && (
-                                <RoastView
-                                    feature={feature}
-                                    models={models}
-                                    selected={selected}
-                                    onSelect={setSelected}
-                                />
+                            {(view === 'linkedin-roast' ||
+                                view === 'ig-roast' ||
+                                view === 'tiktok-roast') && (
+                                <RoastView feature={view} selected={selected} />
                             )}
                         </motion.div>
                     </AnimatePresence>

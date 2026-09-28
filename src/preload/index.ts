@@ -12,6 +12,7 @@ import type {
     FeatureStreamRequest,
     LocalChatRequest,
     LocalProviderKind,
+    SessionFeature,
     StreamEvent,
 } from '@shared/types';
 import type { IartyBridge } from '@shared/bridge';
@@ -76,6 +77,20 @@ const api: IartyBridge = {
         get: () => ipcRenderer.invoke('settings:get') as Promise<AppSettings>,
         set: (settings: AppSettings) =>
             ipcRenderer.invoke('settings:set', settings) as Promise<AppSettings>,
+    },
+    sessions: {
+        list: (feature?: SessionFeature) => ipcRenderer.invoke('sessions:list', feature),
+        get: (id: string) => ipcRenderer.invoke('sessions:get', id),
+        save: (session: {
+            id: string;
+            feature: SessionFeature;
+            title: string;
+            payload: unknown;
+            createdAt?: string;
+        }) => ipcRenderer.invoke('sessions:save', session),
+        rename: (id: string, title: string) => ipcRenderer.invoke('sessions:rename', id, title),
+        remove: (id: string) => ipcRenderer.invoke('sessions:delete', id),
+        clear: (feature?: SessionFeature) => ipcRenderer.invoke('sessions:clear', feature),
     },
 };
 

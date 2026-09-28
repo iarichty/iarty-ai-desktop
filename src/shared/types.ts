@@ -141,6 +141,60 @@ export type FeatureId =
     | 'ig-roast'
     | 'tiktok-roast';
 
+/**
+ * Feature ids that own a locally-persisted session history. Only the rich,
+ * multi-turn features keep sessions; the one-shot roasts do not.
+ */
+export type SessionFeature = 'chat' | 'prd-builder' | 'minutes' | 'study';
+
+/** A saved conversation / workspace session stored on disk. */
+export interface StoredSession {
+    /** Stable id, e.g. `chat-1712345678901`. */
+    id: string;
+    feature: SessionFeature;
+    /** Human-friendly title, derivable from the first user turn. */
+    title: string;
+    /** ISO timestamps. */
+    createdAt: string;
+    updatedAt: string;
+    /** Full serialised feature state. Shape depends on `feature`. */
+    payload: unknown;
+}
+
+/** Lightweight projection returned by `sessions.list()` (no payload). */
+export interface SessionSummary {
+    id: string;
+    feature: SessionFeature;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    /** Number of turns / items, feature-specific, for display. */
+    itemCount: number;
+}
+
+/** Chat feature session payload. */
+export interface ChatSessionPayload {
+    messages: ChatMessage[];
+    modelId?: string;
+}
+
+/** PRD Builder feature session payload (mirrors the web export shape). */
+export interface PrdSessionPayload {
+    messages: unknown[];
+    outputs: { prd_markdown: string; database_schema: string; page_flow: string };
+    design: unknown | null;
+    projectTitle: string;
+    status: string;
+}
+
+/** Minutes / Study feature session payload. */
+export interface TextSessionPayload {
+    input: string;
+    output: string;
+    /** Feature-specific extras (language, mode, amount…). */
+    meta?: Record<string, string>;
+}
+
 export interface LocalChatRequest {
     kind: LocalProviderKind;
     baseUrl: string;
@@ -162,6 +216,8 @@ export interface ChatStartResult {
 export interface AppSettings {
     localProvider: LocalProviderConfig;
     defaultModelId: string;
+    /** When true, sessions are written to disk automatically as they change. */
+    autoSaveSessions: boolean;
 }
 
 /** Chat context-length modes offered in the composer (mirrors the web app). */
