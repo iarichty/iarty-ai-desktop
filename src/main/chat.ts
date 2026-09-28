@@ -78,7 +78,7 @@ export async function startCloudChat(req: CloudChatRequest): Promise<string> {
             emit(requestId, { type: 'done' });
         } catch (error) {
             if (controller.signal.aborted) {
-                emit(requestId, { type: 'done' });
+                emit(requestId, { type: 'cancelled' });
             } else {
                 emit(requestId, {
                     type: 'error',
@@ -109,7 +109,7 @@ export function startLocalChat(req: LocalChatRequest): string {
             emit(requestId, { type: 'done' });
         } catch (error) {
             if (controller.signal.aborted) {
-                emit(requestId, { type: 'done' });
+                emit(requestId, { type: 'cancelled' });
             } else {
                 emit(requestId, {
                     type: 'error',
@@ -158,7 +158,7 @@ export function startFeatureStream(req: FeatureStreamRequest): string {
             emit(requestId, { type: 'done' });
         } catch (error) {
             if (controller.signal.aborted) {
-                emit(requestId, { type: 'done' });
+                emit(requestId, { type: 'cancelled' });
             } else {
                 emit(requestId, {
                     type: 'error',
@@ -209,7 +209,7 @@ export function startStudyQuiz(req: {
             emit(requestId, { type: 'done' });
         } catch (error) {
             if (controller.signal.aborted) {
-                emit(requestId, { type: 'done' });
+                emit(requestId, { type: 'cancelled' });
             } else {
                 emit(requestId, {
                     type: 'error',
@@ -233,32 +233,46 @@ async function parseSse(
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+
+    // A backend `error` frame is distinguished from a malformed line: only the
+    // former is rethrown, so a genuine error message is never silently dropped.
     const handle = (line: string): boolean => {
         if (!line.startsWith('data:')) return false;
         const data = line.slice(5).trim();
         if (data === '[DONE]') return true;
+
+        let parsed: { content?: string; error?: string };
         try {
-            const parsed = JSON.parse(data) as { content?: string; error?: string };
-            if (parsed.error) throw new Error(parsed.error);
-            if (parsed.content) onChunk(parsed.content);
-        } catch (err) {
-            if (err instanceof Error && err.message && !/JSON/i.test(err.message)) throw err;
+            parsed = JSON.parse(data) as { content?: string; error?: string };
+        } catch {
+            // Malformed/partial frame — ignore it, don't fail the whole stream.
+            return false;
         }
+        if (parsed.error) throw new Error(parsed.error);
+        if (parsed.content) onChunk(parsed.content);
         return false;
     };
 
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-            if (handle(line)) {
-                reader.releaseLock();
-                return;
+    try {
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+            for (const line of lines) {
+                if (handle(line)) return;
             }
         }
+        if (buffer) handle(buffer);
+    } finally {
+        // Always release the lock so the underlying response stream is not
+        // leaked when `handle` throws (backend error frame).
+        try {
+            await reader.cancel();
+        } catch {
+            /* stream already closed */
+        }
+        reader.releaseLock();
     }
-    if (buffer) handle(buffer);
 }

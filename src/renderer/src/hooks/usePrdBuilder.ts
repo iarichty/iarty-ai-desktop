@@ -111,10 +111,13 @@ export function usePrdBuilder(): UsePrdBuilder {
                 let accumulated = '';
                 let settled = false;
                 let requestId = '';
+                let awaiting = true;
                 let off: () => void = () => {};
+                let safety: ReturnType<typeof setTimeout> = setTimeout(() => {}, 0);
 
                 const cleanup = (): void => {
                     off();
+                    clearTimeout(safety);
                     if (activeRequest.current === requestId) activeRequest.current = null;
                 };
 
@@ -137,7 +140,15 @@ export function usePrdBuilder(): UsePrdBuilder {
 
                 off = bridge.features.onStream(
                     ({ requestId: rid, event }: { requestId: string; event: StreamEvent }) => {
-                        if (rid !== requestId) return;
+                        // Adopt the id from the first event — the main process
+                        // may emit before `features.start` resolves.
+                        if (awaiting) {
+                            awaiting = false;
+                            requestId = rid;
+                            activeRequest.current = rid;
+                        } else if (rid !== requestId) {
+                            return;
+                        }
                         if (event.type === 'chunk') {
                             accumulated += event.content;
                             const next = accumulated;
@@ -147,6 +158,9 @@ export function usePrdBuilder(): UsePrdBuilder {
                         } else if (event.type === 'done') {
                             if (onDone) onDone(accumulated);
                             finish(accumulated);
+                        } else if (event.type === 'cancelled') {
+                            // Keep whatever streamed so far; do not treat as an error.
+                            finish(accumulated);
                         } else {
                             if (addPlaceholder) markFailed(event.message);
                             addNotification(event.message, 'error');
@@ -155,11 +169,22 @@ export function usePrdBuilder(): UsePrdBuilder {
                     },
                 );
 
+                // Safety net: never leave the stage locked if the main process
+                // drops the terminal event (crash, window close, etc.).
+                safety = setTimeout(() => {
+                    if (addPlaceholder && accumulated) return finish(accumulated);
+                    if (addPlaceholder) markFailed('Request timed out');
+                    finish(null);
+                }, 10 * 60 * 1000);
+
                 bridge.features
                     .start({ path, model, history, fields })
                     .then((id) => {
-                        requestId = id as string;
-                        activeRequest.current = requestId;
+                        if (awaiting) {
+                            awaiting = false;
+                            requestId = id as string;
+                            activeRequest.current = requestId;
+                        }
                     })
                     .catch((err) => {
                         const message =

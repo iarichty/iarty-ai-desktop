@@ -31,22 +31,36 @@ export function useFeatureStream(): UseFeatureStream {
     const [streaming, setStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const activeRequest = useRef<string | null>(null);
+    /** See useChat: adopt the id from the first event to avoid dropping the
+     *  first chunk when it arrives before `features.start` resolves. */
+    const awaitingRequest = useRef(false);
     const { addNotification } = useNotification();
 
     useEffect(() => {
         const off = bridge.features.onStream(
             ({ requestId, event }: { requestId: string; event: StreamEvent }) => {
-                if (requestId !== activeRequest.current) return;
+                if (activeRequest.current === null && awaitingRequest.current) {
+                    activeRequest.current = requestId;
+                    awaitingRequest.current = false;
+                } else if (requestId !== activeRequest.current) {
+                    return;
+                }
                 if (event.type === 'chunk') {
                     setContent((prev) => prev + event.content);
                 } else if (event.type === 'done') {
                     setStreaming(false);
                     activeRequest.current = null;
+                    awaitingRequest.current = false;
+                } else if (event.type === 'cancelled') {
+                    setStreaming(false);
+                    activeRequest.current = null;
+                    awaitingRequest.current = false;
                 } else if (event.type === 'error') {
                     setError(event.message);
                     addNotification(event.message, 'error');
                     setStreaming(false);
                     activeRequest.current = null;
+                    awaitingRequest.current = false;
                 }
             },
         );
@@ -57,12 +71,16 @@ export function useFeatureStream(): UseFeatureStream {
         setContent('');
         setError(null);
         setStreaming(true);
+        activeRequest.current = null;
+        awaitingRequest.current = true;
         try {
             const requestId = (await bridge.features.start(req)) as string;
             activeRequest.current = requestId;
+            awaitingRequest.current = false;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Request failed');
             setStreaming(false);
+            awaitingRequest.current = false;
         }
     }, []);
 
@@ -77,12 +95,16 @@ export function useFeatureStream(): UseFeatureStream {
             setContent('');
             setError(null);
             setStreaming(true);
+            activeRequest.current = null;
+            awaitingRequest.current = true;
             try {
                 const requestId = (await bridge.features.studyQuiz(req)) as string;
                 activeRequest.current = requestId;
+                awaitingRequest.current = false;
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Request failed');
                 setStreaming(false);
+                awaitingRequest.current = false;
             }
         },
         [],
@@ -93,6 +115,7 @@ export function useFeatureStream(): UseFeatureStream {
             void bridge.features.cancel(activeRequest.current);
             activeRequest.current = null;
         }
+        awaitingRequest.current = false;
         setStreaming(false);
     }, []);
 

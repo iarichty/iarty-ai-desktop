@@ -47,6 +47,13 @@ export function useChat(onCompleted?: () => void): UseChat {
     const [streaming, setStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const activeRequest = useRef<string | null>(null);
+    /**
+     * True from the moment a stream is started until its request id is known.
+     * The main process can emit the first chunk before `startCloud/startLocal`
+     * resolves, so we adopt the id from the first event we see while awaiting —
+     * otherwise early chunks would be filtered out and the stream would hang.
+     */
+    const awaitingRequest = useRef(false);
     const messagesRef = useRef<ChatMessage[]>([]);
     const onCompletedRef = useRef(onCompleted);
     onCompletedRef.current = onCompleted;
@@ -58,7 +65,13 @@ export function useChat(onCompleted?: () => void): UseChat {
     useEffect(() => {
         const off = bridge.chat.onStream(
             ({ requestId, event }: { requestId: string; event: StreamEvent }) => {
-                if (requestId !== activeRequest.current) return;
+                if (activeRequest.current === null && awaitingRequest.current) {
+                    // Claim the id for the stream we just kicked off.
+                    activeRequest.current = requestId;
+                    awaitingRequest.current = false;
+                } else if (requestId !== activeRequest.current) {
+                    return;
+                }
 
                 if (event.type === 'chunk') {
                     setMessages((prev) => {
@@ -75,7 +88,14 @@ export function useChat(onCompleted?: () => void): UseChat {
                 } else if (event.type === 'done') {
                     setStreaming(false);
                     activeRequest.current = null;
+                    awaitingRequest.current = false;
                     onCompletedRef.current?.();
+                } else if (event.type === 'cancelled') {
+                    // User stopped generation — keep the partial text but do not
+                    // report success (no auto-save / completion callback).
+                    setStreaming(false);
+                    activeRequest.current = null;
+                    awaitingRequest.current = false;
                 } else if (event.type === 'error') {
                     setError(event.message);
                     setMessages((prev) => {
@@ -92,6 +112,7 @@ export function useChat(onCompleted?: () => void): UseChat {
                     });
                     setStreaming(false);
                     activeRequest.current = null;
+                    awaitingRequest.current = false;
                 }
             },
         );
@@ -108,6 +129,8 @@ export function useChat(onCompleted?: () => void): UseChat {
             setError(null);
             setMessages([...history, { role: 'assistant', content: '', timestamp: now() }]);
             setStreaming(true);
+            activeRequest.current = null;
+            awaitingRequest.current = true;
 
             try {
                 let requestId: string;
@@ -134,6 +157,7 @@ export function useChat(onCompleted?: () => void): UseChat {
                     })) as string;
                 }
                 activeRequest.current = requestId;
+                awaitingRequest.current = false;
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to start chat');
                 setMessages((prev) => {
@@ -149,6 +173,7 @@ export function useChat(onCompleted?: () => void): UseChat {
                     return next;
                 });
                 setStreaming(false);
+                awaitingRequest.current = false;
             }
         },
         [],
@@ -190,6 +215,7 @@ export function useChat(onCompleted?: () => void): UseChat {
             void bridge.chat.cancel(activeRequest.current);
             activeRequest.current = null;
         }
+        awaitingRequest.current = false;
         setStreaming(false);
     }, []);
 

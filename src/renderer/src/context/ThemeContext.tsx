@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 type Theme = 'light' | 'dark';
 
@@ -54,6 +54,19 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
         localStorage.setItem(STORAGE_KEY, theme);
     }, [theme]);
 
+    // Tracks the bloom cleanup timer so rapid toggles can't stack timeouts, and
+    // so the class is always removed on unmount.
+    const bloomTimer = useRef<number | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (bloomTimer.current !== null) {
+                window.clearTimeout(bloomTimer.current);
+                document.documentElement.classList.remove('theme-transitioning');
+            }
+        };
+    }, []);
+
     const toggleTheme = (event?: { clientX: number; clientY: number }): void => {
         const next: Theme = theme === 'dark' ? 'light' : 'dark';
         const bloomed = event ? applyCircleBloom(event.clientX, event.clientY) : false;
@@ -61,8 +74,10 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
         if (bloomed) {
             const doc = document as Document & { startViewTransition?: (cb: () => void) => void };
             doc.startViewTransition?.(() => setTheme(next));
-            window.setTimeout(() => {
+            if (bloomTimer.current !== null) window.clearTimeout(bloomTimer.current);
+            bloomTimer.current = window.setTimeout(() => {
                 document.documentElement.classList.remove('theme-transitioning');
+                bloomTimer.current = null;
             }, BLOOM_DURATION_MS);
         } else {
             setTheme(next);

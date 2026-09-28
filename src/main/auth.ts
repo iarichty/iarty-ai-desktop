@@ -20,6 +20,7 @@
  */
 import { BrowserWindow, shell, webContents } from 'electron';
 import { createServer, type Server } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { jwtDecode } from 'jwt-decode';
 import { accountApi } from './api';
 import { authSession, sessionRequest } from './http';
@@ -87,6 +88,13 @@ async function exchangeToken(): Promise<string | null> {
 export class AuthManager {
     private loopback: Server | null = null;
     private loginWindow: BrowserWindow | null = null;
+    /**
+     * One-time nonce for the login currently in progress. Any deep-link
+     * (`iarty://auth/callback`) token must echo this value as `state`, so a
+     * stray/forged deep link from another process cannot bind a session
+     * (session fixation). Cleared when login settles.
+     */
+    private pendingLoginNonce: string | null = null;
 
     /** Returns the stored session, refreshing the access token if expired. */
     async getSession(forceRefresh = false): Promise<AuthSession | null> {
@@ -147,13 +155,21 @@ export class AuthManager {
      * external browser the loopback fallback can be used instead.
      */
     async login(): Promise<AuthSession> {
-        return this.loginWithInAppWindow();
+        // Fresh nonce for this login attempt; guards the deep-link fallback.
+        this.pendingLoginNonce = randomUUID();
+        try {
+            return await this.loginWithInAppWindow();
+        } finally {
+            this.pendingLoginNonce = null;
+        }
     }
 
     // ── Strategy 1: in-app window ───────────────────────────────────────────
 
     private async loginWithInAppWindow(): Promise<AuthSession> {
         const ses = authSession();
+        // Guarantee a nonce even if this entrypoint is reached directly.
+        if (!this.pendingLoginNonce) this.pendingLoginNonce = randomUUID();
         // Start clean so a previous user's cookies don't leak in.
         await ses.clearStorageData({ storages: ['cookies'] });
         emitLoginLog('Opening the IARTY sign-in window…');
@@ -180,7 +196,8 @@ export class AuthManager {
         this.loginWindow = win;
 
         const redirect = `http://${LOOPBACK_HOST}:${port}/callback`;
-        const loginUrl = `${SIGNIN_URL}?desktop_redirect=${encodeURIComponent(redirect)}`;
+        const state = this.pendingLoginNonce;
+        const loginUrl = `${SIGNIN_URL}?desktop_redirect=${encodeURIComponent(redirect)}&state=${encodeURIComponent(state)}`;
         win.loadURL(loginUrl).catch(() => {
             emitLoginLog('Could not load the sign-in page. Check your connection.');
         });
@@ -297,11 +314,13 @@ export class AuthManager {
     // ── Strategy 2: external browser + loopback ─────────────────────────────
 
     async loginWithExternalBrowser(): Promise<AuthSession> {
+        this.pendingLoginNonce = randomUUID();
         const { server, port, waitForCallback } = await startLoopback();
         this.loopback = server;
 
         const redirect = `http://${LOOPBACK_HOST}:${port}/callback`;
-        const loginUrl = `${SIGNIN_URL}?desktop_redirect=${encodeURIComponent(redirect)}`;
+        const state = this.pendingLoginNonce ?? (this.pendingLoginNonce = randomUUID());
+        const loginUrl = `${SIGNIN_URL}?desktop_redirect=${encodeURIComponent(redirect)}&state=${encodeURIComponent(state)}`;
         emitLoginLog('Opening your browser to sign in…');
 
         const opened = await shell.openExternal(loginUrl).then(
@@ -329,17 +348,34 @@ export class AuthManager {
             return session;
         } finally {
             this.stopLoopback();
+            this.pendingLoginNonce = null;
         }
     }
 
-    /** Deep-link fallback: `iarty://auth/callback?access_token=...`. */
+    /**
+     * Deep-link fallback: `iarty://auth/callback?access_token=...&state=...`.
+     *
+     * Only accepted while a login is in progress and when the callback echoes
+     * the nonce generated at login start — otherwise a local process (or a web
+     * page able to trigger the `iarty://` scheme) could silently bind an
+     * arbitrary account to the app.
+     */
     async loginWithDeepLink(deepLinkUrl: string): Promise<AuthSession | null> {
         try {
             const url = new URL(deepLinkUrl);
             if (url.protocol !== `${PROTOCOL_SCHEME}:`) return null;
+
+            const expected = this.pendingLoginNonce;
+            const state = url.searchParams.get('state');
+            if (!expected || !state || state !== expected) {
+                emitLoginLog('Ignored an unexpected deep-link sign-in.');
+                return null;
+            }
+
             const accessToken =
                 url.searchParams.get('access_token') ?? url.searchParams.get('token');
             if (!accessToken) return null;
+
             const session = await buildSession(accessToken);
             persistence.setSession(session);
             return session;

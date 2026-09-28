@@ -207,6 +207,7 @@ export interface LocalChatRequest {
 export type StreamEvent =
     | { type: 'chunk'; content: string }
     | { type: 'done' }
+    | { type: 'cancelled' }
     | { type: 'error'; message: string };
 
 export interface ChatStartResult {

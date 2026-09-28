@@ -1,11 +1,15 @@
 /**
  * Persistent state (tokens, user, settings).
  *
- * electron-store writes a JSON file under the OS app-data directory. The
- * renderer never touches this directly — it only receives the non-sensitive
- * projection it needs (user + settings), never the raw refresh cookie.
+ * electron-store writes a JSON file under the OS app-data directory. Sensitive
+ * secrets (the access token and the refresh cookie) are encrypted at rest with
+ * Electron's `safeStorage` (OS keychain / DPAPI / libsecret) before they reach
+ * the file, and decrypted on read. The renderer never touches this directly —
+ * it only receives the non-sensitive projection it needs (user + settings),
+ * never the raw refresh cookie.
  */
 import Store from 'electron-store';
+import { safeStorage } from 'electron';
 import type {
     AppSettings,
     AuthSession,
@@ -16,6 +20,39 @@ import type {
     StoredSession,
 } from '@shared/types';
 import { DEFAULT_OLLAMA_URL } from './config';
+
+/**
+ * Encrypt a secret for at-rest storage. Falls back to returning the raw value
+ * when OS encryption is unavailable (e.g. headless CI), so the app still runs.
+ */
+function encryptSecret(plain: string): string {
+    if (!plain) return '';
+    try {
+        if (safeStorage.isEncryptionAvailable()) {
+            return safeStorage.encryptString(plain).toString('base64');
+        }
+    } catch {
+        // fall through to plaintext
+    }
+    return plain;
+}
+
+/**
+ * Decrypt a secret read from disk. Values that fail to decrypt (e.g. written by
+ * an older build, or on a different machine) are treated as empty so the user
+ * is simply asked to sign in again rather than crashing.
+ */
+function decryptSecret(stored: string): string {
+    if (!stored) return '';
+    try {
+        if (safeStorage.isEncryptionAvailable()) {
+            return safeStorage.decryptString(Buffer.from(stored, 'base64'));
+        }
+    } catch {
+        return '';
+    }
+    return stored;
+}
 
 interface StoreSchema {
     accessToken: string;
@@ -74,7 +111,7 @@ function toSummary(session: StoredSession): SessionSummary {
 
 export const persistence = {
     getSession(): AuthSession | null {
-        const accessToken = store.get('accessToken');
+        const accessToken = decryptSecret(store.get('accessToken'));
         const user = store.get('user');
         const expire = store.get('expire');
         if (!accessToken || !user) return null;
@@ -82,7 +119,7 @@ export const persistence = {
     },
 
     setSession(session: AuthSession): void {
-        store.set('accessToken', session.accessToken);
+        store.set('accessToken', encryptSecret(session.accessToken));
         store.set('user', session.user);
         store.set('expire', session.expire);
     },
@@ -95,11 +132,11 @@ export const persistence = {
     },
 
     getRefreshCookie(): string {
-        return store.get('refreshCookie');
+        return decryptSecret(store.get('refreshCookie'));
     },
 
     setRefreshCookie(cookie: string): void {
-        store.set('refreshCookie', cookie);
+        store.set('refreshCookie', encryptSecret(cookie));
     },
 
     getSettings(): AppSettings {
