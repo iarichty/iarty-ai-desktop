@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-80 -80 1184 1184" role="img" aria-label="Loading">
+  <title>Loading</title>
+  <style>
+    .p { fill: currentColor; transform-box: fill-box; transform-origin: center; animation-duration: 2.4s; animation-iteration-count: infinite; animation-timing-function: cubic-bezier(.65,0,.35,1); }
+    .l { animation-name: left; }
+    .r { animation-name: right; }
+    .c { animation-name: core; }
+
+    /* outer pieces slide together, hold, then drift apart */
+    @keyframes left {
+      0%   { transform: translateX(-70px); opacity: 0; }
+      30%  { transform: translateX(0);     opacity: 1; }
+      70%  { transform: translateX(0);     opacity: 1; }
+      100% { transform: translateX(-70px); opacity: 0; }
+    }
+    @keyframes right {
+      0%   { transform: translateX(70px);  opacity: 0; }
+      30%  { transform: translateX(0);     opacity: 1; }
+      70%  { transform: translateX(0);     opacity: 1; }
+      100% { transform: translateX(70px);  opacity: 0; }
+    }
+    /* center square pops in, pulses once, then shrinks away */
+    @keyframes core {
+      0%   { transform: scale(0) rotate(-90deg);  opacity: 0; }
+      30%  { transform: scale(0) rotate(-90deg);  opacity: 0; }
+      45%  { transform: scale(1.25) rotate(0deg); opacity: 1; }
+      55%  { transform: scale(1) rotate(0deg);    opacity: 1; }
+      70%  { transform: scale(1) rotate(0deg);    opacity: 1; }
+      100% { transform: scale(0) rotate(90deg);   opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .p { animation: none; }
+    }
+  </style>
+
+  <!-- left shape -->
+  <path class="p l" d="M 523.13 -0.56 L 635.4 111.72 L 228.69 518.43 L 616.78 906.53 L 499.81 1023.5 L -0.56 523.13 Z"/>
+  <!-- right shape -->
+  <path class="p r" d="M 717.03 193.34 L 1023.51 499.82 L 703.11 820.21 L 590.74 707.84 L 794.16 504.41 L 600.06 310.31 Z"/>
+  <!-- center square -->
+  <path class="p c" d="M 428.66 432 L 594.11 432 L 594.11 590.73 L 428.66 590.73 Z"/>
+</svg>

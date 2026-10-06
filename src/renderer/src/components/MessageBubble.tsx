@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { TbCheck, TbCopy, TbEdit, TbRefresh, TbAlertTriangle } from 'react-icons/tb';
 import type { ChatMessage } from '@shared/types';
+import Loader from './Loader';
 import FormattedContent from './FormattedContent';
 
 interface Props {
@@ -66,7 +67,7 @@ export default function MessageBubble({
                     </div>
                 ) : message.content === '' && isLoading ? (
                     <div className="flex items-center gap-3 py-2 text-sm font-medium text-text">
-                        <span className="loader h-5 w-5 text-accent" />
+                        <Loader className="h-5 w-5 text-accent" />
                         Thinking...
                     </div>
                 ) : message.failed ? (

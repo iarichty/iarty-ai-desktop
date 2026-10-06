@@ -15,6 +15,7 @@ import {
 import type { IconType } from 'react-icons';
 import type { PrdDesign, PrdOutputs, PrdOutputTab, ParsedErDiagram, ParsedFlow } from '@/types/prd';
 import { parseErDiagram, parseFlowchart } from '@/lib/prdHelpers';
+import Loader from './Loader';
 import FormattedContent from './FormattedContent';
 import { DatabaseTableView, PageFlowView } from './ArtifactViews';
 
@@ -142,7 +143,7 @@ export default function PrdResultsWorkspace({
                                 className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-900/20 transition-all active:scale-95 disabled:opacity-40"
                             >
                                 {isDesigning ? (
-                                    <span className="loader h-3.5 w-3.5" />
+                                    <Loader className="h-3.5 w-3.5" />
                                 ) : (
                                     <TbPalette className="h-4 w-4" />
                                 )}
@@ -157,7 +158,7 @@ export default function PrdResultsWorkspace({
                             className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold text-text-h transition-all hover:opacity-80 active:scale-95 disabled:opacity-40"
                         >
                             {isRegenerating ? (
-                                <span className="loader h-3.5 w-3.5" />
+                                <Loader className="h-3.5 w-3.5" />
                             ) : (
                                 <TbRefresh className="h-4 w-4" />
                             )}
@@ -276,7 +277,7 @@ export default function PrdResultsWorkspace({
                                 >
                                     {isDesigning ? (
                                         <div className="flex flex-col items-center justify-center gap-3 py-16">
-                                            <span className="loader h-8 w-8" />
+                                            <Loader className="h-8 w-8" />
                                             <span className="animate-pulse text-xs font-semibold text-text">
                                                 Curating design recommendations...
                                             </span>

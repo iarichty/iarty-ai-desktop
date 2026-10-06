@@ -7,8 +7,8 @@ import {
     TbCheck,
     TbX,
     TbPlus,
-    TbLoader2,
 } from 'react-icons/tb';
+import Loader from './Loader';
 import type { SessionSummary } from '@shared/types';
 import { formatSessionTime } from '@/lib/sessions';
 
@@ -100,7 +100,7 @@ export function SessionList({
                             <span className="text-[10px] font-bold uppercase tracking-wide text-text">
                                 Saved on this device
                             </span>
-                            {loading && <TbLoader2 className="h-3.5 w-3.5 animate-spin text-accent" />}
+                            {loading && <Loader className="h-3.5 w-3.5 text-accent" />}
                         </div>
 
                         <button

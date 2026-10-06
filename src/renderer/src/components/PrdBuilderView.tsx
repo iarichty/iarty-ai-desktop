@@ -22,6 +22,7 @@ import type {
     ReasoningEffort,
     UnifiedModel,
 } from '@shared/types';
+import Loader from './Loader';
 import { usePrdBuilder } from '@/hooks/usePrdBuilder';
 import { useSessions } from '@/hooks/useSessions';
 import { useSessionAutoSave } from '@/hooks/useSessionAutoSave';
@@ -629,7 +630,7 @@ function PrdStreamProgress({ raw, isDone }: { raw: string; isDone: boolean }): J
                 {isDone ? (
                     <TbCircleCheckFilled className="h-4 w-4 shrink-0 text-emerald-400" />
                 ) : (
-                    <span className="loader h-4 w-4 shrink-0" />
+                    <Loader className="h-4 w-4 shrink-0" />
                 )}
                 <span className="text-xs font-bold text-neutral-200">
                     {isDone ? 'PRD artifacts generated' : 'Generating PRD artifacts...'}
@@ -765,7 +766,7 @@ function PrdBubble({
                     </div>
                 ) : message.content === '' && isStreaming ? (
                     <div className="flex items-center gap-3 py-2 text-sm font-medium text-text">
-                        <span className="loader h-5 w-5 text-accent" />
+                        <Loader className="h-5 w-5 text-accent" />
                         Thinking...
                     </div>
                 ) : message.failed ? (

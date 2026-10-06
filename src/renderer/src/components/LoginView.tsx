@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { TbLock } from 'react-icons/tb';
+import Loader from './Loader';
 import { Button } from './Button';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
@@ -58,7 +59,7 @@ export function LoginView({ loading, error, status, onLogin }: Props): JSX.Eleme
                 >
                     {loading ? (
                         <>
-                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            <Loader className="h-4 w-4" />
                             Waiting for sign-in…
                         </>
                     ) : (

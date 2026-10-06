@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import { NotificationContainer } from '@/components/Notification';
 import { MainLayout } from '@/components/MainLayout';
+import Loader from '@/components/Loader';
 import { LoginView } from '@/components/LoginView';
 
 export default function App(): JSX.Element {
@@ -15,7 +16,7 @@ export default function App(): JSX.Element {
             <NotificationProvider>
                 {auth.loading && !auth.session ? (
                     <div className="flex h-full items-center justify-center text-sm text-text">
-                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                        <Loader className="h-5 w-5 text-accent" />
                     </div>
                 ) : !auth.session ? (
                     <LoginView
