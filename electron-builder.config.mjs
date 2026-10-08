@@ -32,10 +32,17 @@ export default {
             releaseType: 'release',
         },
     ],
+    // Windows: code-sign the installer/exe when a certificate is provided via
+    // the standard electron-builder env vars (CSC_LINK / CSC_KEY_PASSWORD, or
+    // WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD). When no certificate is present,
+    // electron-builder skips signing and produces an unsigned artifact — the
+    // CI workflow logs which mode is active.
     win: {
         icon: 'build/icon.ico',
         target: [{ target: 'nsis', arch: ['x64'] }],
         artifactName: 'iarty-ai-desktop-${version}-win-${arch}.${ext}',
+        // `signAndEditExecutable` stays on by default; when no cert is
+        // configured electron-builder simply omits the signature.
     },
     nsis: {
         oneClick: false,
@@ -48,6 +55,15 @@ export default {
     mac: {
         icon: 'build/icon.png',
         category: 'public.app-category.productivity',
+        // Hardened runtime + notarization are required for a distribution-ready
+        // macOS build. Both are activated only when the relevant secrets are
+        // present (CSC_LINK + notarization credentials); otherwise the build
+        // falls back to an unsigned zip — see .github/workflows/release.yml.
+        hardenedRuntime: true,
+        gatekeeperAssess: false,
+        entitlements: 'build/entitlements.mac.plist',
+        entitlementsInherit: 'build/entitlements.mac.plist',
+        notarize: false, // enabled dynamically in CI when Apple credentials exist
         // Ship a zip on CI: the DMG step mounts a volume named after
         // productName ("IARTY AI"), and `hdiutil detach` flakes on the space
         // on GitHub's macOS runners. A zip is a valid, reliable mac artifact

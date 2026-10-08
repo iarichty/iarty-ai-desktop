@@ -24,8 +24,10 @@ no build required.
 | **macOS** (Apple Silicon) | `…-mac-arm64.zip` / `.dmg` | Unzip / open, then drag **IARTY AI.app** into Applications. |
 | **macOS** (Intel) | `…-mac-x64.zip` / `.dmg` | Same as above. |
 
-> Builds are **unsigned**. On first launch Windows SmartScreen and macOS
-> Gatekeeper may warn — choose *More info → Run anyway* / right-click → *Open*.
+> Builds may be **unsigned** until signing certificates are configured. On first
+> launch Windows SmartScreen and macOS Gatekeeper may warn — choose *More info →
+> Run anyway* / right-click → *Open*. See [`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md)
+> to enable signed, notarized builds (optional, fail-soft).
 
 ## Features
 
