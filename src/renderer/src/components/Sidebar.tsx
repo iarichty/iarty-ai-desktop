@@ -1,24 +1,70 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TbSparkles, TbBook, TbBlocks, TbBrandLinkedin, TbBrandInstagram, TbBrandTiktok, TbRobot, TbMicrophone, TbChevronLeft } from 'react-icons/tb';
+import {
+    TbSparkles,
+    TbBook,
+    TbBlocks,
+    TbBrandLinkedin,
+    TbBrandInstagram,
+    TbBrandTiktok,
+    TbRobot,
+    TbMicrophone,
+    TbChevronLeft,
+} from 'react-icons/tb';
 import type { IconType } from 'react-icons';
 import type { FeatureId } from '@shared/types';
+import { useLanguage } from '@/context/useLanguage';
 
 interface NavItem {
     id: FeatureId;
-    label: string;
-    description: string;
+    labelKey: string;
+    descriptionKey: string;
     icon: IconType;
 }
 
 const MENU: NavItem[] = [
-    { id: 'chat', label: 'AI Chat', description: 'Multimodal AI', icon: TbRobot },
-    { id: 'prd-builder', label: 'PRD Builder', description: 'PRD Builder', icon: TbBlocks },
-    { id: 'minutes', label: 'Minutes', description: 'Minutes AI', icon: TbMicrophone },
-    { id: 'study', label: 'Study', description: 'Study AI', icon: TbBook },
-    { id: 'linkedin-roast', label: 'LinkedIn Roast', description: 'Roast & Optimize', icon: TbBrandLinkedin },
-    { id: 'ig-roast', label: 'IG Roast', description: 'Roast & Optimize', icon: TbBrandInstagram },
-    { id: 'tiktok-roast', label: 'TikTok Roast', description: 'Roast & Optimize', icon: TbBrandTiktok },
+    {
+        id: 'chat',
+        labelKey: 'sidebar.chatLabel',
+        descriptionKey: 'sidebar.chatDesc',
+        icon: TbRobot,
+    },
+    {
+        id: 'prd-builder',
+        labelKey: 'sidebar.prdLabel',
+        descriptionKey: 'sidebar.prdDesc',
+        icon: TbBlocks,
+    },
+    {
+        id: 'minutes',
+        labelKey: 'sidebar.minutesLabel',
+        descriptionKey: 'sidebar.minutesDesc',
+        icon: TbMicrophone,
+    },
+    {
+        id: 'study',
+        labelKey: 'sidebar.studyLabel',
+        descriptionKey: 'sidebar.studyDesc',
+        icon: TbBook,
+    },
+    {
+        id: 'linkedin-roast',
+        labelKey: 'sidebar.linkedinLabel',
+        descriptionKey: 'sidebar.roastDesc',
+        icon: TbBrandLinkedin,
+    },
+    {
+        id: 'ig-roast',
+        labelKey: 'sidebar.instagramLabel',
+        descriptionKey: 'sidebar.roastDesc',
+        icon: TbBrandInstagram,
+    },
+    {
+        id: 'tiktok-roast',
+        labelKey: 'sidebar.tiktokLabel',
+        descriptionKey: 'sidebar.roastDesc',
+        icon: TbBrandTiktok,
+    },
 ];
 
 interface Props {
@@ -28,6 +74,7 @@ interface Props {
 
 /** Floating capsule sidebar mirroring the IARTY AI web app. */
 export function Sidebar({ active, onSelect }: Props): JSX.Element {
+    const { t } = useLanguage();
     const [open, setOpen] = useState(false);
 
     // Auto-collapse the mobile drawer when the viewport grows.
@@ -60,7 +107,7 @@ export function Sidebar({ active, onSelect }: Props): JSX.Element {
                     </div>
                     <div className="overflow-hidden whitespace-nowrap opacity-0 transition-opacity delay-100 duration-300 group-hover:opacity-100">
                         <h1 className="bg-gradient-to-r from-accent to-transparent bg-clip-text text-2xl font-black text-transparent">
-                            IARTY AI
+                            {t('sidebar.brand')}
                         </h1>
                     </div>
                 </div>
@@ -92,12 +139,12 @@ export function Sidebar({ active, onSelect }: Props): JSX.Element {
                                 </div>
                                 <div className="absolute left-14 flex flex-col justify-center overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                                     <span className="text-sm font-semibold leading-tight">
-                                        {item.label}
+                                        {t(item.labelKey)}
                                     </span>
                                     <span
                                         className={`text-[10px] leading-tight ${isActive ? 'text-accent' : 'text-text'}`}
                                     >
-                                        {item.description}
+                                        {t(item.descriptionKey)}
                                     </span>
                                 </div>
                             </button>
@@ -122,9 +169,11 @@ export function Sidebar({ active, onSelect }: Props): JSX.Element {
                 type="button"
                 onClick={() => setOpen((o) => !o)}
                 className="fixed bottom-4 left-4 z-40 grid h-11 w-11 place-items-center rounded-full border border-border bg-[color:var(--surface)] shadow-lg md:hidden"
-                aria-label="Toggle navigation"
+                aria-label={t('nav.toggleNav')}
             >
-                <TbChevronLeft className={`h-5 w-5 transition-transform ${open ? 'rotate-180' : ''}`} />
+                <TbChevronLeft
+                    className={`h-5 w-5 transition-transform ${open ? 'rotate-180' : ''}`}
+                />
             </button>
         </>
     );

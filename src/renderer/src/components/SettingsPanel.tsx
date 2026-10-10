@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { TbX } from 'react-icons/tb';
 import type { AppSettings, LocalProviderKind } from '@shared/types';
 import { Button } from './Button';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     settings: AppSettings;
@@ -16,6 +17,7 @@ const field =
 
 /** Modal: configure the local provider and probe its models. */
 export function SettingsPanel({ settings, onSave, onProbe, onClose }: Props): JSX.Element {
+    const { t } = useLanguage();
     const [kind, setKind] = useState<LocalProviderKind>(settings.localProvider.kind);
     const [baseUrl, setBaseUrl] = useState(settings.localProvider.baseUrl);
     const [apiKey, setApiKey] = useState(settings.localProvider.apiKey ?? '');
@@ -49,7 +51,7 @@ export function SettingsPanel({ settings, onSave, onProbe, onClose }: Props): JS
                 className="w-full max-w-lg rounded-2xl border border-border bg-[color:var(--surface)] p-6 shadow-2xl"
             >
                 <div className="mb-5 flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">Local model provider</h2>
+                    <h2 className="text-lg font-semibold">{t('settings.localProvider')}</h2>
                     <button
                         onClick={onClose}
                         className="rounded-lg p-1 text-text transition-colors hover:bg-[color:var(--surface-2)] hover:text-text-h"
@@ -59,46 +61,48 @@ export function SettingsPanel({ settings, onSave, onProbe, onClose }: Props): JS
                 </div>
 
                 <label className="mb-1 block text-xs uppercase tracking-wide text-text">
-                    Provider
+                    {t('settings.provider')}
                 </label>
                 <select
                     value={kind}
                     onChange={(e) => setKind(e.target.value as LocalProviderKind)}
                     className={`${field} mb-4`}
                 >
-                    <option value="ollama">Ollama</option>
-                    <option value="openai-compatible">OpenAI-compatible (LM Studio, vLLM…)</option>
+                    <option value="ollama">{t('settings.ollama')}</option>
+                    <option value="openai-compatible">{t('settings.openaiCompatible')}</option>
                 </select>
 
                 <label className="mb-1 block text-xs uppercase tracking-wide text-text">
-                    Base URL
+                    {t('settings.baseUrl')}
                 </label>
                 <input
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     placeholder={
-                        kind === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234/v1'
+                        kind === 'ollama'
+                            ? t('settings.baseUrlOllama')
+                            : t('settings.baseUrlOpenai')
                     }
                     className={`${field} mb-4`}
                 />
 
                 <label className="mb-1 block text-xs uppercase tracking-wide text-text">
-                    API key (optional)
+                    {t('settings.apiKey')}
                 </label>
                 <input
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     type="password"
-                    placeholder="Only if your local server requires it"
+                    placeholder={t('settings.apiKeyPlaceholder')}
                     className={`${field} mb-6`}
                 />
 
                 <div className="flex justify-end gap-2">
                     <Button variant="ghost" onClick={onClose}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                     <Button onClick={save} disabled={saving}>
-                        {saving ? 'Saving…' : 'Save & detect models'}
+                        {saving ? t('settings.saving') : t('settings.saveDetect')}
                     </Button>
                 </div>
             </motion.div>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bridge } from '@/lib/bridge';
+import { useLanguage } from '@/context/useLanguage';
 import { useNotification } from '@/context/NotificationContext';
 import type { FeatureStreamRequest, StreamEvent } from '@shared/types';
 
@@ -35,6 +36,7 @@ export function useFeatureStream(): UseFeatureStream {
      *  first chunk when it arrives before `features.start` resolves. */
     const awaitingRequest = useRef(false);
     const { addNotification } = useNotification();
+    const { t } = useLanguage();
 
     useEffect(() => {
         const off = bridge.features.onStream(
@@ -67,22 +69,25 @@ export function useFeatureStream(): UseFeatureStream {
         return off;
     }, [addNotification]);
 
-    const run = useCallback(async (req: FeatureStreamRequest) => {
-        setContent('');
-        setError(null);
-        setStreaming(true);
-        activeRequest.current = null;
-        awaitingRequest.current = true;
-        try {
-            const requestId = (await bridge.features.start(req)) as string;
-            activeRequest.current = requestId;
-            awaitingRequest.current = false;
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Request failed');
-            setStreaming(false);
-            awaitingRequest.current = false;
-        }
-    }, []);
+    const run = useCallback(
+        async (req: FeatureStreamRequest) => {
+            setContent('');
+            setError(null);
+            setStreaming(true);
+            activeRequest.current = null;
+            awaitingRequest.current = true;
+            try {
+                const requestId = (await bridge.features.start(req)) as string;
+                activeRequest.current = requestId;
+                awaitingRequest.current = false;
+            } catch (err) {
+                setError(err instanceof Error ? err.message : t('errors.requestFailed'));
+                setStreaming(false);
+                awaitingRequest.current = false;
+            }
+        },
+        [t],
+    );
 
     const runStudyQuiz = useCallback(
         async (req: {
@@ -102,7 +107,7 @@ export function useFeatureStream(): UseFeatureStream {
                 activeRequest.current = requestId;
                 awaitingRequest.current = false;
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Request failed');
+                setError(err instanceof Error ? err.message : t('errors.requestFailed'));
                 setStreaming(false);
                 awaitingRequest.current = false;
             }
@@ -117,7 +122,7 @@ export function useFeatureStream(): UseFeatureStream {
         }
         awaitingRequest.current = false;
         setStreaming(false);
-    }, []);
+    }, [t]);
 
     const reset = useCallback(() => {
         stop();
@@ -130,5 +135,14 @@ export function useFeatureStream(): UseFeatureStream {
         setContent(value);
     }, []);
 
-    return { content, streaming, error, run, runStudyQuiz, stop, reset, setContent: replaceContent };
+    return {
+        content,
+        streaming,
+        error,
+        run,
+        runStudyQuiz,
+        stop,
+        reset,
+        setContent: replaceContent,
+    };
 }

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbAlertTriangle } from 'react-icons/tb';
 import FormattedContent from './FormattedContent';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     content: string;
@@ -13,6 +14,7 @@ interface Props {
 
 /** Read-only streamed output surface rendering markdown, with an error banner. */
 export function OutputPanel({ content, streaming, error, emptyHint }: Props): JSX.Element {
+    const { t } = useLanguage();
     const endRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -46,7 +48,7 @@ export function OutputPanel({ content, streaming, error, emptyHint }: Props): JS
             ) : (
                 !error && (
                     <div className="flex h-64 flex-col items-center justify-center text-center text-sm text-text">
-                        {emptyHint ?? 'Your results will appear here.'}
+                        {emptyHint ?? t('outputPanel.empty')}
                     </div>
                 )
             )}

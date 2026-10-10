@@ -12,6 +12,7 @@ import { SessionList } from './SessionList';
 import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import FeatureHero from './FeatureHero';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     selected: UnifiedModel | null;
@@ -20,7 +21,10 @@ interface Props {
 
 type Mode = 'material' | 'quiz';
 
-const LANGUAGES = ['english', 'indonesian'];
+const LANGUAGES: { value: string; labelKey: string }[] = [
+    { value: 'english', labelKey: 'study.langEnglish' },
+    { value: 'indonesian', labelKey: 'study.langIndonesian' },
+];
 
 /**
  * Study — summarises study material and generates a quiz. The quiz button uses
@@ -28,6 +32,7 @@ const LANGUAGES = ['english', 'indonesian'];
  * are auto-saved to disk with a browsable history.
  */
 export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
+    const { t } = useLanguage();
     const stream = useFeatureStream();
     const sessions = useSessions('study');
     const { addNotification } = useNotification();
@@ -52,8 +57,8 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
         [input, stream.content, mode, language, amount],
     );
     const title = useMemo(
-        () => deriveTitle(input, mode === 'quiz' ? 'Study quiz' : 'Study material'),
-        [input, mode],
+        () => deriveTitle(input, mode === 'quiz' ? t('study.titleQuiz') : t('study.titleMaterial')),
+        [input, mode, t],
     );
 
     useSessionAutoSave<TextSessionPayload>({
@@ -96,7 +101,10 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
             pendingSaveRef.current = false;
             void sessions.save({
                 id: sessionId,
-                title: deriveTitle(input, mode === 'quiz' ? 'Study quiz' : 'Study material'),
+                title: deriveTitle(
+                    input,
+                    mode === 'quiz' ? t('study.titleQuiz') : t('study.titleMaterial'),
+                ),
                 payload: {
                     input,
                     output: stream.content,
@@ -104,13 +112,13 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
                 },
             });
         }
-    }, [stream.streaming, stream.content, sessionId, input, mode, language, amount, sessions]);
+    }, [stream.streaming, stream.content, sessionId, input, mode, language, amount, sessions, t]);
 
     const handleOpen = useCallback(
         async (id: string) => {
             const stored = await sessions.load(id);
             if (!stored) {
-                addNotification('Could not open that session.', 'error');
+                addNotification(t('study.openFailed'), 'error');
                 return;
             }
             const p = stored.payload as TextSessionPayload;
@@ -121,9 +129,9 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
             stream.setContent(p.output ?? '');
             setSessionId(stored.id);
             setActiveSessionId(stored.id);
-            addNotification('Session restored', 'success');
+            addNotification(t('study.restored'), 'success');
         },
-        [sessions, stream, addNotification],
+        [sessions, stream, addNotification, t],
     );
 
     const handleNew = useCallback(() => {
@@ -146,11 +154,11 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
                     onDelete={(id) => void sessions.remove(id)}
                     onNew={handleNew}
                     onClearAll={() => void sessions.clearAll()}
-                    label="Study"
+                    label={t('study.title')}
                 />
                 <Button variant="outline" size="sm" onClick={handleNew}>
                     <TbPlus className="h-4 w-4" />
-                    New
+                    {t('common.new')}
                 </Button>
             </NavbarPortal>
 
@@ -167,7 +175,7 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
                                     : 'text-text hover:text-accent'
                             }`}
                         >
-                            {m === 'material' ? 'Summary' : 'Quiz'}
+                            {m === 'material' ? t('study.modeSummary') : t('study.modeQuiz')}
                         </button>
                     ))}
                 </div>
@@ -177,13 +185,13 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
                     className="rounded-xl border border-border bg-[color:var(--surface)] px-3 py-2 text-sm text-text-h outline-none"
                 >
                     {LANGUAGES.map((l) => (
-                        <option key={l} value={l}>
-                            {l}
+                        <option key={l.value} value={l.value}>
+                            {t(l.labelKey)}
                         </option>
                     ))}
                 </select>
                 <label className="flex items-center gap-2 text-xs text-text">
-                    Questions
+                    {t('study.questions')}
                     <input
                         type="number"
                         min={1}
@@ -199,7 +207,7 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
                         onClick={() => setInput(summary)}
                         className="rounded-lg border border-border px-2 py-1 text-xs text-text hover:text-accent"
                     >
-                        Use last summary
+                        {t('study.useLastSummary')}
                     </button>
                 )}
             </div>
@@ -214,8 +222,8 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
                             <>
                                 <TbBook className="mb-2 h-8 w-8 text-accent" />
                                 {mode === 'material'
-                                    ? 'Paste study material to get a structured summary.'
-                                    : 'Paste the material summary to generate a quiz.'}
+                                    ? t('study.emptySummary')
+                                    : t('study.emptyQuiz')}
                             </>
                         }
                     />
@@ -223,8 +231,8 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
                     <div className="flex h-full flex-col items-center justify-center">
                         <FeatureHero
                             icon={TbBook}
-                            title="Study"
-                            description="Summarise dense study material into clear notes, then generate quizzes to test yourself."
+                            title={t('study.title')}
+                            description={t('study.heroDesc')}
                         />
                     </div>
                 )}
@@ -239,8 +247,8 @@ export function StudyView({ selected, autoSave = true }: Props): JSX.Element {
                     streaming={stream.streaming}
                     placeholder={
                         mode === 'material'
-                            ? 'Paste the text you want summarised…'
-                            : 'Paste the summary to quiz yourself on…'
+                            ? t('study.placeholderMaterial')
+                            : t('study.placeholderQuiz')
                     }
                 />
             </footer>

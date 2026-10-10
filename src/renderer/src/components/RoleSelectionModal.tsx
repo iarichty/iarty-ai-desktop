@@ -1,6 +1,7 @@
 import { TbCheck, TbUserSearch, TbRestore } from 'react-icons/tb';
 import Modal from './Modal';
 import { OFFICIAL_ROLES, type RoleTemplate } from '@/data/roles';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     isOpen: boolean;
@@ -16,12 +17,13 @@ export default function RoleSelectionModal({
     onClose,
     onSelect,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="Choose a Role"
-            subtitle="Activate a specialized persona for your AI assistant"
+            title={t('role.title')}
+            subtitle={t('role.subtitle')}
             icon={TbUserSearch}
             accent="text-blue-500"
         >
@@ -42,11 +44,9 @@ export default function RoleSelectionModal({
                     </div>
                     <div>
                         <span className="block text-sm font-bold text-text-h">
-                            No Role (Default)
+                            {t('role.none')}
                         </span>
-                        <span className="text-[10px] text-text">
-                            Standard AI assistant without a persona
-                        </span>
+                        <span className="text-[10px] text-text">{t('role.noneDesc')}</span>
                     </div>
                 </button>
 

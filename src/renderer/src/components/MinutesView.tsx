@@ -12,13 +12,18 @@ import { SessionList } from './SessionList';
 import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import FeatureHero from './FeatureHero';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     selected: UnifiedModel | null;
     autoSave?: boolean;
 }
 
-const LANGUAGES = ['auto', 'english', 'indonesian'];
+const LANGUAGES: { value: string; labelKey: string }[] = [
+    { value: 'auto', labelKey: 'minutes.langAuto' },
+    { value: 'english', labelKey: 'minutes.langEnglish' },
+    { value: 'indonesian', labelKey: 'minutes.langIndonesian' },
+];
 
 /**
  * Minutes — turns a raw meeting transcript into structured minutes. Mirrors
@@ -26,6 +31,7 @@ const LANGUAGES = ['auto', 'english', 'indonesian'];
  * Every run is auto-saved to disk with a browsable history.
  */
 export function MinutesView({ selected, autoSave = true }: Props): JSX.Element {
+    const { t } = useLanguage();
     const stream = useFeatureStream();
     const sessions = useSessions('minutes');
     const { addNotification } = useNotification();
@@ -36,13 +42,10 @@ export function MinutesView({ selected, autoSave = true }: Props): JSX.Element {
     const pendingSaveRef = useRef(false);
 
     const payload = useMemo<TextSessionPayload | null>(
-        () =>
-            stream.content
-                ? { input, output: stream.content, meta: { language } }
-                : null,
+        () => (stream.content ? { input, output: stream.content, meta: { language } } : null),
         [input, stream.content, language],
     );
-    const title = useMemo(() => deriveTitle(input, 'Minutes session'), [input]);
+    const title = useMemo(() => deriveTitle(input, t('minutes.sessionTitle')), [input, t]);
 
     useSessionAutoSave<TextSessionPayload>({
         payload,
@@ -74,17 +77,17 @@ export function MinutesView({ selected, autoSave = true }: Props): JSX.Element {
             pendingSaveRef.current = false;
             void sessions.save({
                 id: sessionId,
-                title: deriveTitle(input, 'Minutes session'),
+                title: deriveTitle(input, t('minutes.sessionTitle')),
                 payload: { input, output: stream.content, meta: { language } },
             });
         }
-    }, [stream.streaming, stream.content, sessionId, input, language, sessions]);
+    }, [stream.streaming, stream.content, sessionId, input, language, sessions, t]);
 
     const handleOpen = useCallback(
         async (id: string) => {
             const stored = await sessions.load(id);
             if (!stored) {
-                addNotification('Could not open that session.', 'error');
+                addNotification(t('minutes.openFailed'), 'error');
                 return;
             }
             const p = stored.payload as TextSessionPayload;
@@ -93,9 +96,9 @@ export function MinutesView({ selected, autoSave = true }: Props): JSX.Element {
             stream.setContent(p.output ?? '');
             setSessionId(stored.id);
             setActiveSessionId(stored.id);
-            addNotification('Session restored', 'success');
+            addNotification(t('minutes.restored'), 'success');
         },
-        [sessions, stream, addNotification],
+        [sessions, stream, addNotification, t],
     );
 
     const handleNew = useCallback(() => {
@@ -117,25 +120,25 @@ export function MinutesView({ selected, autoSave = true }: Props): JSX.Element {
                     onDelete={(id) => void sessions.remove(id)}
                     onNew={handleNew}
                     onClearAll={() => void sessions.clearAll()}
-                    label="Minutes"
+                    label={t('minutes.title')}
                 />
                 <Button variant="outline" size="sm" onClick={handleNew}>
                     <TbPlus className="h-4 w-4" />
-                    New
+                    {t('common.new')}
                 </Button>
             </NavbarPortal>
 
             <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-2.5">
                 <label className="flex items-center gap-2 text-xs text-text">
-                    Output language
+                    {t('minutes.outputLanguage')}
                     <select
                         value={language}
                         onChange={(e) => setLanguage(e.target.value)}
                         className="rounded-xl border border-border bg-[color:var(--surface)] px-3 py-2 text-sm text-text-h outline-none"
                     >
                         {LANGUAGES.map((l) => (
-                            <option key={l} value={l}>
-                                {l}
+                            <option key={l.value} value={l.value}>
+                                {t(l.labelKey)}
                             </option>
                         ))}
                     </select>
@@ -151,7 +154,7 @@ export function MinutesView({ selected, autoSave = true }: Props): JSX.Element {
                         emptyHint={
                             <>
                                 <TbMicrophone className="mb-2 h-8 w-8 text-accent" />
-                                Paste your meeting transcript to generate structured minutes.
+                                {t('minutes.empty')}
                             </>
                         }
                     />
@@ -159,8 +162,8 @@ export function MinutesView({ selected, autoSave = true }: Props): JSX.Element {
                     <div className="flex h-full flex-col items-center justify-center">
                         <FeatureHero
                             icon={TbMicrophone}
-                            title="Minutes"
-                            description="Turn a raw meeting transcript into clean, structured minutes with action items and decisions."
+                            title={t('minutes.title')}
+                            description={t('minutes.heroDesc')}
                         />
                     </div>
                 )}
@@ -173,7 +176,7 @@ export function MinutesView({ selected, autoSave = true }: Props): JSX.Element {
                     onSubmit={() => void submit()}
                     onStop={stream.stop}
                     streaming={stream.streaming}
-                    placeholder="Paste the meeting transcript or notes…"
+                    placeholder={t('minutes.placeholder')}
                 />
             </footer>
         </div>

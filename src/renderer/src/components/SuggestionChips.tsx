@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbBulb, TbRefresh } from 'react-icons/tb';
 import type { PrdSuggestion } from '@/types/prd';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     suggestions: PrdSuggestion[];
@@ -20,6 +21,7 @@ export default function SuggestionChips({
     disabled = false,
     visible = true,
 }: Props): JSX.Element | null {
+    const { t } = useLanguage();
     if (!visible) return null;
     const hasChips = suggestions.length > 0;
 
@@ -28,7 +30,7 @@ export default function SuggestionChips({
             <div className="mb-2 flex items-center gap-1.5">
                 <TbBulb className="h-3.5 w-3.5 text-amber-500" />
                 <span className="text-[10px] font-black uppercase tracking-widest text-text">
-                    Suggested answers
+                    {t('suggestion.heading')}
                 </span>
                 {!isLoading && (
                     <button
@@ -36,10 +38,10 @@ export default function SuggestionChips({
                         onClick={onRegenerate}
                         disabled={disabled}
                         className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-text transition-colors hover:bg-[color:var(--surface-2)] hover:text-text-h disabled:cursor-not-allowed disabled:opacity-40"
-                        title="Generate suggested answers"
+                        title={t('suggestion.generate')}
                     >
                         <TbRefresh className="h-3.5 w-3.5" />
-                        {hasChips ? 'Refresh' : 'Suggest answers'}
+                        {hasChips ? t('suggestion.refresh') : t('suggestion.suggest')}
                     </button>
                 )}
             </div>
@@ -95,7 +97,7 @@ export default function SuggestionChips({
                         exit={{ opacity: 0 }}
                         className="text-[11px] text-text/70"
                     >
-                        No suggestions yet — click &ldquo;Suggest answers&rdquo; to generate some.
+                        {t('suggestion.empty')}
                     </motion.p>
                 )}
             </AnimatePresence>

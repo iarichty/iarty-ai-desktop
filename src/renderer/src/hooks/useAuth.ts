@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bridge } from '@/lib/bridge';
+import { useLanguage } from '@/context/useLanguage';
 import type { AuthSession, LoginResult } from '@shared/types';
 
 interface UseAuth {
@@ -14,6 +15,7 @@ interface UseAuth {
 
 /** Loads and mutates the auth session held in the main process. */
 export function useAuth(): UseAuth {
+    const { t } = useLanguage();
     const [session, setSession] = useState<AuthSession | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -27,12 +29,12 @@ export function useAuth(): UseAuth {
             if (mounted.current) setSession(current);
         } catch (err) {
             if (mounted.current) {
-                setError(err instanceof Error ? err.message : 'Failed to load session');
+                setError(err instanceof Error ? err.message : t('errors.sessionLoadFailed'));
             }
         } finally {
             if (mounted.current) setLoading(false);
         }
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         mounted.current = true;

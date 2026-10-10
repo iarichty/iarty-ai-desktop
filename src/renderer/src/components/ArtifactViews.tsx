@@ -10,6 +10,7 @@ import {
     TbFocusCentered,
 } from 'react-icons/tb';
 import type { DbTable, DbRelationship, ParsedErDiagram, ParsedFlow, FlowStep } from '@/types/prd';
+import { useLanguage } from '@/context/useLanguage';
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -47,14 +48,14 @@ const splitCardinality = (cardinality: string): [string, string] => {
 };
 
 /** Human label for a mermaid ER cardinality endpoint token. */
-const cardinalityLabel = (token: string, isLeft: boolean): string => {
+const cardinalityLabel = (token: string, isLeft: boolean, t: (k: string) => string): string => {
     const normalized = token.trim();
     if (!normalized) return '';
-    if (normalized === '||') return 'one';
-    if (normalized === 'o|' || normalized === '|o') return 'zero or one';
-    if (normalized === '}o' || normalized === 'o{') return 'zero or many';
-    if (normalized === '}|' || normalized === '|{') return 'one or many';
-    return isLeft ? 'one' : 'many';
+    if (normalized === '||') return t('artifacts.one');
+    if (normalized === 'o|' || normalized === '|o') return t('artifacts.zeroOrOne');
+    if (normalized === '}o' || normalized === 'o{') return t('artifacts.zeroOrMany');
+    if (normalized === '}|' || normalized === '|{') return t('artifacts.oneOrMany');
+    return isLeft ? t('artifacts.one') : t('artifacts.many');
 };
 
 const isManyToken = (token: string): boolean => /[{}]/.test(token);
@@ -117,6 +118,7 @@ function CanvasViewport({
     children: ReactNode;
     toolbar?: ReactNode;
 }): JSX.Element {
+    const { t } = useLanguage();
     const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
     const dragState = useRef({
         dragging: false,
@@ -169,21 +171,21 @@ function CanvasViewport({
                 <button
                     onClick={() => zoom(1.15)}
                     className="cursor-pointer rounded-lg border border-border bg-[color:var(--surface)]/90 p-1.5 text-text transition-colors hover:text-text-h"
-                    title="Zoom in"
+                    title={t('artifacts.zoomIn')}
                 >
                     <TbPlus className="h-4 w-4" />
                 </button>
                 <button
                     onClick={() => zoom(0.87)}
                     className="cursor-pointer rounded-lg border border-border bg-[color:var(--surface)]/90 p-1.5 text-text transition-colors hover:text-text-h"
-                    title="Zoom out"
+                    title={t('artifacts.zoomOut')}
                 >
                     <TbMinus className="h-4 w-4" />
                 </button>
                 <button
                     onClick={reset}
                     className="cursor-pointer rounded-lg border border-border bg-[color:var(--surface)]/90 p-1.5 text-text transition-colors hover:text-text-h"
-                    title="Reset view"
+                    title={t('artifacts.resetView')}
                 >
                     <TbFocusCentered className="h-4 w-4" />
                 </button>
@@ -398,14 +400,14 @@ interface Edge {
     y2: number;
 }
 
-export function DatabaseTableView({
-    parsed,
-}: {
-    parsed: ParsedErDiagram | null;
-}): JSX.Element {
+export function DatabaseTableView({ parsed }: { parsed: ParsedErDiagram | null }): JSX.Element {
+    const { t } = useLanguage();
     const tables = parsed?.tables ?? [];
     const relationships = parsed?.relationships ?? [];
-    const columns = useMemo(() => buildTableColumns(tables, relationships), [tables, relationships]);
+    const columns = useMemo(
+        () => buildTableColumns(tables, relationships),
+        [tables, relationships],
+    );
     const contentRef = useRef<HTMLDivElement | null>(null);
     const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -499,9 +501,7 @@ export function DatabaseTableView({
     }, [measure]);
 
     if (tables.length === 0) {
-        return (
-            <p className="py-12 text-center text-sm text-text">No database schema was generated.</p>
-        );
+        return <p className="py-12 text-center text-sm text-text">{t('artifacts.noSchema')}</p>;
     }
 
     const relatedTables = new Set<string>();
@@ -516,7 +516,8 @@ export function DatabaseTableView({
             <CanvasViewport
                 toolbar={
                     <span className="hidden h-7 items-center rounded-lg border border-border bg-[color:var(--surface)]/90 px-2.5 text-[10px] font-bold text-text sm:flex">
-                        {tables.length} tables · {relationships.length} links
+                        {tables.length} {t('artifacts.tables')} · {relationships.length}{' '}
+                        {t('artifacts.links')}
                     </span>
                 }
             >
@@ -552,8 +553,18 @@ export function DatabaseTableView({
                                         className="stroke-neutral-900 dark:stroke-white"
                                         strokeLinecap="round"
                                     />
-                                    <CardinalityMarker cx={e.x1} cy={e.y1} dir={1} token={leftToken} />
-                                    <CardinalityMarker cx={e.x2} cy={e.y2} dir={-1} token={rightToken} />
+                                    <CardinalityMarker
+                                        cx={e.x1}
+                                        cy={e.y1}
+                                        dir={1}
+                                        token={leftToken}
+                                    />
+                                    <CardinalityMarker
+                                        cx={e.x2}
+                                        cy={e.y2}
+                                        dir={-1}
+                                        token={rightToken}
+                                    />
                                     <g transform={`translate(${midX}, ${(e.y1 + e.y2) / 2})`}>
                                         <rect
                                             x={-64}
@@ -570,8 +581,8 @@ export function DatabaseTableView({
                                             className="fill-neutral-900 dark:fill-white"
                                             style={{ fontSize: 10, fontWeight: 700 }}
                                         >
-                                            {cardinalityLabel(leftToken, true)} →{' '}
-                                            {cardinalityLabel(rightToken, false)}
+                                            {cardinalityLabel(leftToken, true, t)} →{' '}
+                                            {cardinalityLabel(rightToken, false, t)}
                                         </text>
                                     </g>
                                 </g>
@@ -581,7 +592,10 @@ export function DatabaseTableView({
 
                     {columns.map((colTables, colIdx) =>
                         colTables.map((table, rowIdx) => (
-                            <div key={table.name} style={{ gridColumn: colIdx + 1, gridRow: rowIdx + 1 }}>
+                            <div
+                                key={table.name}
+                                style={{ gridColumn: colIdx + 1, gridRow: rowIdx + 1 }}
+                            >
                                 <TableCard
                                     table={table}
                                     index={colIdx + rowIdx}
@@ -607,7 +621,7 @@ export function DatabaseTableView({
                     <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3 dark:bg-white">
                         <TbLink className="h-4 w-4 shrink-0 text-white dark:text-neutral-900" />
                         <h4 className="text-sm font-black text-white dark:text-neutral-900">
-                            Relationship List
+                            {t('artifacts.relationshipList')}
                         </h4>
                     </div>
                     <div className="overflow-x-auto">
@@ -615,22 +629,24 @@ export function DatabaseTableView({
                             <thead>
                                 <tr className="border-b border-border text-left text-text">
                                     <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide">
-                                        From
+                                        {t('artifacts.from')}
                                     </th>
                                     <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide">
-                                        Type
+                                        {t('artifacts.type')}
                                     </th>
                                     <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide">
-                                        To
+                                        {t('artifacts.to')}
                                     </th>
                                     <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide">
-                                        Label
+                                        {t('artifacts.label')}
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {relationships.map((rel, i) => {
-                                    const [leftToken, rightToken] = splitCardinality(rel.cardinality);
+                                    const [leftToken, rightToken] = splitCardinality(
+                                        rel.cardinality,
+                                    );
                                     return (
                                         <tr
                                             key={`${rel.from}-${rel.to}-${i}`}
@@ -645,15 +661,17 @@ export function DatabaseTableView({
                                                         {rel.cardinality}
                                                     </span>
                                                     <span className="font-semibold text-text-h">
-                                                        {cardinalityLabel(leftToken, true)} →{' '}
-                                                        {cardinalityLabel(rightToken, false)}
+                                                        {cardinalityLabel(leftToken, true, t)} →{' '}
+                                                        {cardinalityLabel(rightToken, false, t)}
                                                     </span>
                                                 </span>
                                             </td>
                                             <td className="whitespace-nowrap px-4 py-2 font-mono font-semibold text-text-h">
                                                 {rel.to}
                                             </td>
-                                            <td className="px-4 py-2 text-text">{rel.label || '—'}</td>
+                                            <td className="px-4 py-2 text-text">
+                                                {rel.label || '—'}
+                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -695,13 +713,22 @@ const COL_GAP = 96;
 const ROW_GAP = 28;
 
 export function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Element {
+    const { t } = useLanguage();
     const flow = parsed ?? { steps: [], transitions: [] };
     const levels = useMemo(() => buildFlowLevels(flow), [flow]);
     const contentRef = useRef<HTMLDivElement | null>(null);
     const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const [size, setSize] = useState({ width: 0, height: 0 });
     const [edges, setEdges] = useState<
-        Array<{ from: string; to: string; condition?: string; x1: number; y1: number; x2: number; y2: number }>
+        Array<{
+            from: string;
+            to: string;
+            condition?: string;
+            x1: number;
+            y1: number;
+            x2: number;
+            y2: number;
+        }>
     >([]);
 
     const labelFor = (id: string): string => flow.steps.find((s) => s.id === id)?.label || id;
@@ -757,7 +784,7 @@ export function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Ele
     }, [measure]);
 
     if (flow.steps.length === 0) {
-        return <p className="py-12 text-center text-sm text-text">No page flow was generated.</p>;
+        return <p className="py-12 text-center text-sm text-text">{t('artifacts.noFlow')}</p>;
     }
 
     const cols = Math.max(1, levels.length);
@@ -767,7 +794,7 @@ export function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Ele
             <CanvasViewport
                 toolbar={
                     <span className="hidden h-7 items-center rounded-lg border border-border bg-[color:var(--surface)]/90 px-2.5 text-[10px] font-bold text-text sm:flex">
-                        {flow.steps.length} pages
+                        {flow.steps.length} {t('artifacts.pages')}
                     </span>
                 }
             >
@@ -799,7 +826,10 @@ export function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Ele
                                 markerHeight="7"
                                 orient="auto-start-reverse"
                             >
-                                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-neutral-900 dark:fill-white" />
+                                <path
+                                    d="M 0 0 L 10 5 L 0 10 z"
+                                    className="fill-neutral-900 dark:fill-white"
+                                />
                             </marker>
                         </defs>
                         {edges.map((e, i) => {
@@ -849,7 +879,10 @@ export function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Ele
                                 key={node.id}
                                 initial={{ opacity: 0, scale: 0.92 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                transition={{ duration: 0.3, delay: level.depth * 0.08 + rowIdx * 0.05 }}
+                                transition={{
+                                    duration: 0.3,
+                                    delay: level.depth * 0.08 + rowIdx * 0.05,
+                                }}
                                 style={{ gridColumn: level.depth + 1, gridRow: rowIdx + 1 }}
                             >
                                 <FlowNodeBox
@@ -871,10 +904,10 @@ export function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Ele
                     <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3 dark:bg-white">
                         <TbArrowNarrowRight className="h-4 w-4 shrink-0 text-white dark:text-neutral-900" />
                         <h4 className="text-sm font-black text-white dark:text-neutral-900">
-                            Transitions
+                            {t('artifacts.transitions')}
                         </h4>
                         <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-white/60 dark:text-neutral-900/60">
-                            {flow.transitions.length} edges
+                            {flow.transitions.length} {t('artifacts.edges')}
                         </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -882,13 +915,13 @@ export function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Ele
                             <thead>
                                 <tr className="border-b border-border text-left text-text">
                                     <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide">
-                                        From
+                                        {t('artifacts.from')}
                                     </th>
                                     <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide">
-                                        To
+                                        {t('artifacts.to')}
                                     </th>
                                     <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide">
-                                        Condition
+                                        {t('artifacts.condition')}
                                     </th>
                                 </tr>
                             </thead>
@@ -907,7 +940,9 @@ export function PageFlowView({ parsed }: { parsed: ParsedFlow | null }): JSX.Ele
                                                 {labelFor(t.to)}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-2 text-text">{t.condition || '—'}</td>
+                                        <td className="px-4 py-2 text-text">
+                                            {t.condition || '—'}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

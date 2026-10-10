@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bridge } from '@/lib/bridge';
+import { useLanguage } from '@/context/useLanguage';
 import type {
     ChatMessage,
     ChatSettings,
@@ -43,6 +44,7 @@ const now = (): string => new Date().toISOString();
  * Mirrors the web app's message flow, including edit/regenerate support.
  */
 export function useChat(onCompleted?: () => void): UseChat {
+    const { t } = useLanguage();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [streaming, setStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -159,14 +161,15 @@ export function useChat(onCompleted?: () => void): UseChat {
                 activeRequest.current = requestId;
                 awaitingRequest.current = false;
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to start chat');
+                setError(err instanceof Error ? err.message : t('errors.chatStartFailed'));
                 setMessages((prev) => {
                     const next = [...prev];
                     const last = next[next.length - 1];
                     if (last && last.role === 'assistant') {
                         next[next.length - 1] = {
                             ...last,
-                            content: err instanceof Error ? err.message : 'Failed to start chat',
+                            content:
+                                err instanceof Error ? err.message : t('errors.chatStartFailed'),
                             failed: true,
                         };
                     }
@@ -195,12 +198,7 @@ export function useChat(onCompleted?: () => void): UseChat {
      * `keepUpTo` (exclusive). Used for editing a prompt and regenerating a reply.
      */
     const sendFrom = useCallback(
-        async (
-            text: string,
-            model: UnifiedModel,
-            keepUpTo: number,
-            opts?: ChatSendOptions,
-        ) => {
+        async (text: string, model: UnifiedModel, keepUpTo: number, opts?: ChatSendOptions) => {
             const history: ChatMessage[] = [
                 ...messagesRef.current.slice(0, keepUpTo),
                 { role: 'user', content: text, timestamp: now() },
@@ -230,5 +228,14 @@ export function useChat(onCompleted?: () => void): UseChat {
         setError(null);
     }, []);
 
-    return { messages, streaming, error, send, sendFrom, setMessages: replaceMessages, stop, clear };
+    return {
+        messages,
+        streaming,
+        error,
+        send,
+        sendFrom,
+        setMessages: replaceMessages,
+        stop,
+        clear,
+    };
 }

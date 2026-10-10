@@ -14,6 +14,7 @@ import type { AppSettings, AuthSession, LocalProviderKind, UnifiedModel } from '
 import { ModelPicker } from './ModelPicker';
 import { Button } from './Button';
 import { Logo } from './Logo';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     session: AuthSession;
@@ -56,6 +57,7 @@ export function ProfileView({
     plan,
     onClose,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     const [kind, setKind] = useState<LocalProviderKind>(settings.localProvider.kind);
     const [baseUrl, setBaseUrl] = useState(settings.localProvider.baseUrl);
     const [apiKey, setApiKey] = useState(settings.localProvider.apiKey ?? '');
@@ -97,20 +99,17 @@ export function ProfileView({
                 >
                     <div className="mb-8">
                         <p className="text-xs font-bold uppercase tracking-widest text-accent">
-                            Account
+                            {t('profile.account')}
                         </p>
                         <div className="mt-1 flex items-center justify-between gap-4">
                             <h1 className="text-3xl font-black tracking-tight text-text-h">
-                                Your Profile
+                                {t('profile.title')}
                             </h1>
                             <Button variant="ghost" size="sm" onClick={onClose}>
-                                Back to app
+                                {t('profile.backToApp')}
                             </Button>
                         </div>
-                        <p className="mt-2 text-sm text-text">
-                            Manage your account, preferred model and local provider. Everything here
-                            is stored on this computer.
-                        </p>
+                        <p className="mt-2 text-sm text-text">{t('profile.subtitle')}</p>
                     </div>
 
                     <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -139,11 +138,11 @@ export function ProfileView({
                                 <div className="mt-4 flex w-full items-center justify-between rounded-2xl border border-border bg-[color:var(--surface-2)] px-4 py-3">
                                     <span className="flex items-center gap-1.5 text-xs font-semibold capitalize text-accent">
                                         <TbBolt className="h-4 w-4" />
-                                        {planName} plan
+                                        {planName} {t('profile.planSuffix')}
                                     </span>
                                     <span className="text-xs font-medium text-text-h">
                                         {plan.remaining !== null
-                                            ? `${plan.remaining} credits`
+                                            ? `${plan.remaining} ${t('profile.creditsSuffix')}`
                                             : '—'}
                                     </span>
                                 </div>
@@ -154,7 +153,7 @@ export function ProfileView({
                                     </span>
                                     <span className="text-xs text-text">
                                         <TbDatabase className="mr-1 inline h-3 w-3" />
-                                        Sessions saved locally
+                                        {t('profile.sessionsLocal')}
                                     </span>
                                 </div>
                             </div>
@@ -165,8 +164,8 @@ export function ProfileView({
                             {/* Preferred model */}
                             <Card
                                 icon={TbRobot}
-                                title="Preferred AI model"
-                                description="Used by default across every feature."
+                                title={t('profile.preferredModel')}
+                                description={t('profile.preferredModelDesc')}
                             >
                                 <ModelPicker
                                     models={models}
@@ -175,7 +174,7 @@ export function ProfileView({
                                 />
                                 {selected && (
                                     <p className="mt-3 text-xs text-text">
-                                        Active:{' '}
+                                        {t('profile.active')}{' '}
                                         <span className="font-semibold text-text-h">
                                             {selected.label}
                                         </span>{' '}
@@ -183,11 +182,13 @@ export function ProfileView({
                                         <span className="inline-flex items-center gap-1">
                                             {selected.source === 'local' ? (
                                                 <>
-                                                    <TbCpu className="h-3 w-3" /> Local (unlimited)
+                                                    <TbCpu className="h-3 w-3" />{' '}
+                                                    {t('profile.sourceLocal')}
                                                 </>
                                             ) : (
                                                 <>
-                                                    <TbCloud className="h-3 w-3" /> Cloud (credits)
+                                                    <TbCloud className="h-3 w-3" />{' '}
+                                                    {t('profile.sourceCloud')}
                                                 </>
                                             )}
                                         </span>
@@ -198,45 +199,45 @@ export function ProfileView({
                             {/* Local provider */}
                             <Card
                                 icon={TbCpu}
-                                title="Local model provider"
-                                description="Connect Ollama or any OpenAI-compatible server running on this computer."
+                                title={t('profile.providerTitle')}
+                                description={t('profile.providerDesc')}
                             >
                                 <label className="mb-1 block text-xs uppercase tracking-wide text-text">
-                                    Provider
+                                    {t('profile.provider')}
                                 </label>
                                 <select
                                     value={kind}
                                     onChange={(e) => setKind(e.target.value as LocalProviderKind)}
                                     className={`${field} mb-4`}
                                 >
-                                    <option value="ollama">Ollama</option>
+                                    <option value="ollama">{t('profile.ollama')}</option>
                                     <option value="openai-compatible">
-                                        OpenAI-compatible (LM Studio, vLLM…)
+                                        {t('profile.openaiCompatible')}
                                     </option>
                                 </select>
 
                                 <label className="mb-1 block text-xs uppercase tracking-wide text-text">
-                                    Base URL
+                                    {t('profile.baseUrl')}
                                 </label>
                                 <input
                                     value={baseUrl}
                                     onChange={(e) => setBaseUrl(e.target.value)}
                                     placeholder={
                                         kind === 'ollama'
-                                            ? 'http://localhost:11434'
-                                            : 'http://localhost:1234/v1'
+                                            ? t('profile.baseUrlOllama')
+                                            : t('profile.baseUrlOpenai')
                                     }
                                     className={`${field} mb-4`}
                                 />
 
                                 <label className="mb-1 block text-xs uppercase tracking-wide text-text">
-                                    API key (optional)
+                                    {t('profile.apiKey')}
                                 </label>
                                 <input
                                     value={apiKey}
                                     onChange={(e) => setApiKey(e.target.value)}
                                     type="password"
-                                    placeholder="Only if your local server requires it"
+                                    placeholder={t('profile.apiKeyPlaceholder')}
                                     className={field}
                                 />
                             </Card>
@@ -244,12 +245,12 @@ export function ProfileView({
                             {/* Session storage */}
                             <Card
                                 icon={TbDatabase}
-                                title="Local sessions"
-                                description="Chats, PRD sessions, minutes and study runs are saved to this computer automatically."
+                                title={t('profile.sessionsTitle')}
+                                description={t('profile.sessionsDesc')}
                             >
                                 <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-border bg-[color:var(--surface-2)] px-4 py-3">
                                     <span className="text-sm text-text-h">
-                                        Auto-save sessions while you work
+                                        {t('profile.autoSave')}
                                     </span>
                                     <button
                                         type="button"
@@ -262,7 +263,11 @@ export function ProfileView({
                                     >
                                         <motion.span
                                             layout
-                                            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                                            transition={{
+                                                type: 'spring',
+                                                stiffness: 500,
+                                                damping: 30,
+                                            }}
                                             className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ${
                                                 autoSave ? 'right-0.5' : 'left-0.5'
                                             }`}
@@ -270,18 +275,17 @@ export function ProfileView({
                                     </button>
                                 </label>
                                 <p className="mt-2 text-xs text-text">
-                                    Saved under this app’s data folder. Open any feature and use its
-                                    history button to revisit a session.
+                                    {t('profile.sessionsNote')}
                                 </p>
                             </Card>
 
                             <div className="flex justify-end gap-2">
                                 <Button variant="ghost" onClick={onClose}>
-                                    Close
+                                    {t('common.close')}
                                 </Button>
                                 <Button onClick={() => void save()} disabled={saving}>
                                     <TbDeviceFloppy className="h-4 w-4" />
-                                    {saving ? 'Saving…' : 'Save & detect models'}
+                                    {saving ? t('profile.saving') : t('profile.saveDetect')}
                                 </Button>
                             </div>
                         </section>

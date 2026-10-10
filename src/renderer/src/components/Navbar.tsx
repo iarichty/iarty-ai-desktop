@@ -4,8 +4,10 @@ import { TbChevronDown, TbUser, TbSettings, TbLogout, TbBolt } from 'react-icons
 import type { IconType } from 'react-icons';
 import type { AiPlan, AuthSession, UnifiedModel } from '@shared/types';
 import { ThemeToggle } from './ThemeToggle';
+import { LanguageToggle } from './LanguageToggle';
 import { ModelPicker } from './ModelPicker';
 import { Logo } from './Logo';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     session: AuthSession;
@@ -46,6 +48,7 @@ export function Navbar({
     onOpenSettings,
     onLogout,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +74,7 @@ export function Navbar({
                 <div className="flex items-center gap-2 pl-1.5 pr-1">
                     <Logo size={22} color="var(--text-h)" />
                     <span className="hidden bg-gradient-to-r from-accent to-accent-2 bg-clip-text text-sm font-black tracking-tight text-transparent sm:inline">
-                        IARTY
+                        {t('nav.brand')}
                     </span>
                 </div>
 
@@ -104,6 +107,8 @@ export function Navbar({
                 )}
 
                 <ThemeToggle />
+
+                <LanguageToggle />
 
                 {/* Avatar + dropdown */}
                 <div ref={menuRef} className="relative">
@@ -185,6 +190,7 @@ function Dropdown({
     onSettings: () => void;
     onLogout: () => void;
 }): JSX.Element {
+    const { t } = useLanguage();
     return (
         <motion.div
             variants={dropdownVariants}
@@ -199,19 +205,23 @@ function Dropdown({
                 {planName && (
                     <div className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-accent">
                         <TbBolt className="h-3 w-3" />
-                        {planName} plan
+                        {planName} {t('common.planSuffix')}
                     </div>
                 )}
             </div>
 
             <div className="mt-1 flex flex-col gap-0.5">
-                <MenuItem icon={TbUser} label="Profile & models" onClick={onProfile} />
-                <MenuItem icon={TbSettings} label="Provider settings" onClick={onSettings} />
+                <MenuItem icon={TbUser} label={t('common.profile')} onClick={onProfile} />
+                <MenuItem
+                    icon={TbSettings}
+                    label={t('common.providerSettings')}
+                    onClick={onSettings}
+                />
             </div>
 
             <div className="my-1 h-px bg-border/60" />
 
-            <MenuItem icon={TbLogout} label="Sign out" onClick={onLogout} danger />
+            <MenuItem icon={TbLogout} label={t('common.signOut')} onClick={onLogout} danger />
         </motion.div>
     );
 }

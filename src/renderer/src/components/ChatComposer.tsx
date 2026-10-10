@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { IconType } from 'react-icons';
 import {
@@ -20,7 +20,8 @@ import { IoSend } from 'react-icons/io5';
 import type { CloudModel } from '@shared/types';
 import type { CavemanMode, HistoryMode, ReasoningEffort } from '@shared/types';
 import type { RoleTemplate } from '@/data/roles';
-
+import { matchSlashCommand, type SlashCommand, type SlashCommandKey } from '@/config/SlashCommands';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     prompt: string;
@@ -48,22 +49,31 @@ interface Props {
     onCavemanModeChange: (mode: CavemanMode) => void;
     reasoningEffort: ReasoningEffort;
     onReasoningEffortChange: (effort: ReasoningEffort) => void;
+    /** Runs a slash command (e.g. `/new`, `/clear`, `/compact`). */
+    onRunCommand?: (command: SlashCommandKey) => void;
 }
 
-const HISTORY_MODES: { key: HistoryMode; label: string; hint: string }[] = [
-    { key: 'short', label: 'Short', hint: '6 msgs' },
-    { key: 'long', label: 'Long', hint: '40 msgs' },
-    { key: 'full', label: 'Full', hint: 'all' },
-    { key: 'custom', label: 'Custom', hint: 'pick' },
+const HISTORY_MODES: { key: HistoryMode; labelKey: string; hintKey: string }[] = [
+    { key: 'short', labelKey: 'composer.historyShort', hintKey: 'composer.historyShortHint' },
+    { key: 'long', labelKey: 'composer.historyLong', hintKey: 'composer.historyLongHint' },
+    { key: 'full', labelKey: 'composer.historyFull', hintKey: 'composer.historyFullHint' },
+    { key: 'custom', labelKey: 'composer.historyCustom', hintKey: 'composer.historyCustomHint' },
 ];
 
-const CAVEMAN_MODES: { key: CavemanMode; label: string; hint: string }[] = [
-    { key: 'off', label: 'Off', hint: 'normal' },
-    { key: 'lite', label: 'Lite', hint: 'short' },
-    { key: 'full', label: 'Full', hint: 'caveman' },
+const CAVEMAN_MODES: { key: CavemanMode; labelKey: string; hintKey: string }[] = [
+    { key: 'off', labelKey: 'composer.cavemanOff', hintKey: 'composer.cavemanOffHint' },
+    { key: 'lite', labelKey: 'composer.cavemanLite', hintKey: 'composer.cavemanLiteHint' },
+    { key: 'full', labelKey: 'composer.cavemanFull', hintKey: 'composer.cavemanFullHint' },
 ];
 
 const REASONING_LEVELS: ReasoningEffort[] = ['disabled', 'low', 'medium', 'high'];
+
+const REASONING_LABEL_KEY: Record<ReasoningEffort, string> = {
+    disabled: 'composer.reasoningDisabled',
+    low: 'composer.reasoningLow',
+    medium: 'composer.reasoningMedium',
+    high: 'composer.reasoningHigh',
+};
 
 const BUTTON_HOVER = { y: -1, scale: 1.05 };
 const BUTTON_TAP = { scale: 0.94 };
@@ -107,12 +117,19 @@ export default function ChatComposer(props: Props): JSX.Element {
         onCavemanModeChange,
         reasoningEffort,
         onReasoningEffortChange,
+        onRunCommand,
     } = props;
 
+    const { t } = useLanguage();
     const [openMenu, setOpenMenu] = useState<MenuKey>(null);
     const [isDeepSearch, setIsDeepSearch] = useState(false);
+    const [commandIndex, setCommandIndex] = useState(0);
     const containerRef = useRef<HTMLFormElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const slashMatch = useMemo(() => matchSlashCommand(prompt), [prompt]);
+    const showCommandMenu =
+        Boolean(onRunCommand) && slashMatch.isCommand && slashMatch.matches.length > 0;
 
     useEffect(() => {
         const onClick = (e: MouseEvent): void => {
@@ -135,6 +152,18 @@ export default function ChatComposer(props: Props): JSX.Element {
     const toggleMenu = (key: MenuKey): void => setOpenMenu((prev) => (prev === key ? null : key));
     const closeMenu = (): void => setOpenMenu(null);
 
+    const handlePromptChange = (value: string): void => {
+        setPrompt(value);
+        setCommandIndex(0);
+    };
+
+    const runCommand = (command: SlashCommand): void => {
+        if (!onRunCommand) return;
+        setPrompt('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        onRunCommand(command.key);
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
         const file = e.target.files?.[0];
         if (file) onAttachFile(file);
@@ -146,6 +175,12 @@ export default function ChatComposer(props: Props): JSX.Element {
 
     const submit = (e: React.FormEvent): void => {
         e.preventDefault();
+        // Slash input is command territory, never a chat message: run an exact
+        // command, otherwise just keep the autocomplete open.
+        if (slashMatch.isCommand && onRunCommand) {
+            if (slashMatch.exact) runCommand(slashMatch.exact);
+            return;
+        }
         if (!canSend) return;
         closeMenu();
         onSubmit();
@@ -174,7 +209,9 @@ export default function ChatComposer(props: Props): JSX.Element {
                 }`}
             >
                 <Icon className="h-5 w-5 md:h-4 md:w-4" />
-                {opts.label && <span className="hidden uppercase tracking-widest md:inline">{opts.label}</span>}
+                {opts.label && (
+                    <span className="hidden uppercase tracking-widest md:inline">{opts.label}</span>
+                )}
             </motion.button>
         );
     };
@@ -182,6 +219,53 @@ export default function ChatComposer(props: Props): JSX.Element {
     return (
         <form onSubmit={submit} ref={containerRef} className="w-full">
             <div className="relative rounded-3xl border border-border bg-[color:var(--surface)]/80 p-2 shadow-xl shadow-black/5 backdrop-blur-2xl transition-colors focus-within:border-accent/50">
+                {/* Slash-command autocomplete */}
+                <AnimatePresence>
+                    {showCommandMenu && (
+                        <motion.div
+                            key="slash-command-menu"
+                            initial={MENU_INITIAL}
+                            animate={MENU_ANIMATE}
+                            exit={MENU_EXIT}
+                            transition={MENU_TRANSITION}
+                            className="absolute bottom-full left-0 z-50 mb-2 w-full overflow-hidden rounded-2xl border border-border bg-[color:var(--surface)]/95 p-2 shadow-2xl backdrop-blur-2xl sm:w-80"
+                        >
+                            <span className="block px-3 py-2 text-xs font-black uppercase tracking-wider text-text">
+                                {t('commands.title')}
+                            </span>
+                            <div className="flex flex-col gap-1">
+                                {slashMatch.matches.map((cmd, index) => (
+                                    <motion.button
+                                        key={cmd.key}
+                                        type="button"
+                                        onMouseEnter={() => setCommandIndex(index)}
+                                        onClick={() => runCommand(cmd)}
+                                        whileHover={{ x: 2 }}
+                                        transition={BUTTON_SPRING}
+                                        className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                                            index === commandIndex
+                                                ? 'bg-accent/15 text-accent'
+                                                : 'text-text-h hover:bg-[color:var(--surface-2)]'
+                                        }`}
+                                    >
+                                        <span className="flex min-w-0 flex-col">
+                                            <span className="truncate text-sm font-bold">
+                                                /{cmd.key}
+                                            </span>
+                                            <span className="truncate text-[11px] text-text">
+                                                {t(cmd.descKey)}
+                                            </span>
+                                        </span>
+                                        <span className="shrink-0 text-[11px] font-medium text-text">
+                                            {t(cmd.titleKey)}
+                                        </span>
+                                    </motion.button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* Attachment preview */}
                 <AnimatePresence>
                     {attachedFile && (
@@ -198,7 +282,7 @@ export default function ChatComposer(props: Props): JSX.Element {
                                 onClick={onRemoveAttachment}
                                 className="ml-auto shrink-0 cursor-pointer text-text hover:text-red-500"
                             >
-                                Remove
+                                {t('common.remove')}
                             </button>
                         </motion.div>
                     )}
@@ -208,8 +292,42 @@ export default function ChatComposer(props: Props): JSX.Element {
                     <textarea
                         ref={textareaRef}
                         value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
+                        onChange={(e) => handlePromptChange(e.target.value)}
                         onKeyDown={(e) => {
+                            if (showCommandMenu) {
+                                if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    setCommandIndex((i) =>
+                                        Math.min(slashMatch.matches.length - 1, i + 1),
+                                    );
+                                    return;
+                                }
+                                if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    setCommandIndex((i) => Math.max(0, i - 1));
+                                    return;
+                                }
+                                if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setPrompt('');
+                                    return;
+                                }
+                                if (e.key === 'Tab') {
+                                    e.preventDefault();
+                                    const cmd = slashMatch.matches[commandIndex];
+                                    if (cmd) setPrompt(`/${cmd.key} `);
+                                    return;
+                                }
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    const cmd =
+                                        slashMatch.exact ??
+                                        slashMatch.matches[commandIndex] ??
+                                        null;
+                                    if (cmd) runCommand(cmd);
+                                    return;
+                                }
+                            }
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
                                 if (canSend) {
@@ -222,8 +340,8 @@ export default function ChatComposer(props: Props): JSX.Element {
                         spellCheck={false}
                         placeholder={
                             !isModelReady
-                                ? 'Select a model to start chatting…'
-                                : 'How can I help you today?'
+                                ? t('composer.placeholderNoModel')
+                                : t('composer.placeholder')
                         }
                         className="max-h-48 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-base text-text-h outline-none placeholder:text-text"
                     />
@@ -234,23 +352,60 @@ export default function ChatComposer(props: Props): JSX.Element {
                     <div className="flex flex-wrap items-center gap-0.5">
                         {/* Attach */}
                         <div className="relative">
-                            {toolButton(TbPaperclip, 'Attach file', () => toggleMenu('attach'), {
-                                active: openMenu === 'attach',
-                            })}
+                            {toolButton(
+                                TbPaperclip,
+                                t('composer.attachFile'),
+                                () => toggleMenu('attach'),
+                                {
+                                    active: openMenu === 'attach',
+                                },
+                            )}
                             <Menu open={openMenu === 'attach'} onClose={closeMenu}>
-                                <MenuLabel>Attach</MenuLabel>
-                                <AttachItem icon={TbFile} label="Any file" accept="" onPick={handleFileChange} closeMenu={closeMenu} />
-                                <AttachItem icon={TbPhoto} label="Image" accept="image/*" onPick={handleFileChange} closeMenu={closeMenu} />
-                                <AttachItem icon={TbVideo} label="Video" accept="video/*" onPick={handleFileChange} closeMenu={closeMenu} />
-                                <AttachItem icon={TbMusic} label="Audio" accept="audio/*" onPick={handleFileChange} closeMenu={closeMenu} />
-                                <AttachItem icon={TbFileDescription} label="PDF" accept="application/pdf" onPick={handleFileChange} closeMenu={closeMenu} />
+                                <MenuLabel>{t('composer.attach')}</MenuLabel>
+                                <AttachItem
+                                    icon={TbFile}
+                                    label={t('composer.anyFile')}
+                                    accept=""
+                                    onPick={handleFileChange}
+                                    closeMenu={closeMenu}
+                                />
+                                <AttachItem
+                                    icon={TbPhoto}
+                                    label={t('composer.image')}
+                                    accept="image/*"
+                                    onPick={handleFileChange}
+                                    closeMenu={closeMenu}
+                                />
+                                <AttachItem
+                                    icon={TbVideo}
+                                    label={t('composer.video')}
+                                    accept="video/*"
+                                    onPick={handleFileChange}
+                                    closeMenu={closeMenu}
+                                />
+                                <AttachItem
+                                    icon={TbMusic}
+                                    label={t('composer.audio')}
+                                    accept="audio/*"
+                                    onPick={handleFileChange}
+                                    closeMenu={closeMenu}
+                                />
+                                <AttachItem
+                                    icon={TbFileDescription}
+                                    label={t('composer.pdf')}
+                                    accept="application/pdf"
+                                    onPick={handleFileChange}
+                                    closeMenu={closeMenu}
+                                />
                             </Menu>
                         </div>
 
                         {/* Role */}
                         {toolButton(
                             TbUserSearch,
-                            selectedRole ? `Role: ${selectedRole.name}` : 'Select role',
+                            selectedRole
+                                ? `${t('composer.rolePrefix')}: ${selectedRole.name}`
+                                : t('composer.selectRole'),
                             () => {
                                 closeMenu();
                                 setIsRoleModalOpen(true);
@@ -265,7 +420,9 @@ export default function ChatComposer(props: Props): JSX.Element {
                         {/* Feature */}
                         {toolButton(
                             TbHierarchy2,
-                            feature ? `Feature: ${feature}` : 'Select feature',
+                            feature
+                                ? `${t('composer.featurePrefix')}: ${feature}`
+                                : t('composer.selectFeature'),
                             () => {
                                 closeMenu();
                                 setIsFeatureModalOpen(true);
@@ -281,7 +438,7 @@ export default function ChatComposer(props: Props): JSX.Element {
                         <div className="relative">
                             {toolButton(
                                 TbHistory,
-                                'History context length',
+                                t('composer.historyTitle'),
                                 () => toggleMenu('history'),
                                 {
                                     disabled: isLoading,
@@ -294,12 +451,12 @@ export default function ChatComposer(props: Props): JSX.Element {
                                 },
                             )}
                             <Menu open={openMenu === 'history'} onClose={closeMenu}>
-                                <MenuLabel>History Context</MenuLabel>
+                                <MenuLabel>{t('composer.historyHeading')}</MenuLabel>
                                 {HISTORY_MODES.map((mode) => (
                                     <MenuRow
                                         key={mode.key}
-                                        label={mode.label}
-                                        hint={mode.hint}
+                                        label={t(mode.labelKey)}
+                                        hint={t(mode.hintKey)}
                                         active={historyMode === mode.key}
                                         onClick={() => onHistoryModeChange(mode.key)}
                                     />
@@ -307,7 +464,7 @@ export default function ChatComposer(props: Props): JSX.Element {
                                 {historyMode === 'custom' && (
                                     <div className="flex items-center gap-3 px-3 py-2.5">
                                         <span className="shrink-0 text-xs font-medium text-text">
-                                            Messages
+                                            {t('composer.messages')}
                                         </span>
                                         <input
                                             type="range"
@@ -331,7 +488,7 @@ export default function ChatComposer(props: Props): JSX.Element {
                         <div className="relative">
                             {toolButton(
                                 TbBone,
-                                `Caveman mode: ${cavemanMode}`,
+                                `${t('composer.cavemanPrefix')}: ${cavemanMode}`,
                                 () => toggleMenu('caveman'),
                                 {
                                     disabled: isLoading,
@@ -341,12 +498,12 @@ export default function ChatComposer(props: Props): JSX.Element {
                                 },
                             )}
                             <Menu open={openMenu === 'caveman'} onClose={closeMenu}>
-                                <MenuLabel>Caveman Mode</MenuLabel>
+                                <MenuLabel>{t('composer.cavemanHeading')}</MenuLabel>
                                 {CAVEMAN_MODES.map((mode) => (
                                     <MenuRow
                                         key={mode.key}
-                                        label={mode.label}
-                                        hint={mode.hint}
+                                        label={t(mode.labelKey)}
+                                        hint={t(mode.hintKey)}
                                         active={cavemanMode === mode.key}
                                         onClick={() => onCavemanModeChange(mode.key)}
                                     />
@@ -360,16 +517,17 @@ export default function ChatComposer(props: Props): JSX.Element {
                         {model?.deepsearch === true &&
                             toolButton(
                                 TbSearch,
-                                isDeepSearch ? 'Deep search active' : 'Enable deep search',
+                                isDeepSearch
+                                    ? t('composer.deepSearchActive')
+                                    : t('composer.deepSearchEnable'),
                                 () => {
                                     closeMenu();
                                     setIsDeepSearch((v) => !v);
                                 },
                                 {
                                     active: isDeepSearch,
-                                    accent:
-                                        'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
-                                    label: 'Deep search',
+                                    accent: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+                                    label: t('composer.deepSearch'),
                                 },
                             )}
 
@@ -378,7 +536,7 @@ export default function ChatComposer(props: Props): JSX.Element {
                             <div className="relative">
                                 {toolButton(
                                     TbBrain,
-                                    `Reasoning: ${reasoningEffort}`,
+                                    `${t('composer.reasoningPrefix')}: ${reasoningEffort}`,
                                     () => {
                                         if (reasoningEffort === 'disabled')
                                             onReasoningEffortChange('medium');
@@ -387,21 +545,28 @@ export default function ChatComposer(props: Props): JSX.Element {
                                     {
                                         disabled: isLoading,
                                         active: reasoningEffort !== 'disabled',
-                                        accent:
-                                            'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+                                        accent: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
                                         label:
                                             reasoningEffort === 'disabled'
                                                 ? undefined
                                                 : reasoningEffort,
                                     },
                                 )}
-                                <Menu open={openMenu === 'reasoning'} onClose={closeMenu} align="right">
-                                    <MenuLabel>Reasoning effort</MenuLabel>
+                                <Menu
+                                    open={openMenu === 'reasoning'}
+                                    onClose={closeMenu}
+                                    align="right"
+                                >
+                                    <MenuLabel>{t('composer.reasoningHeading')}</MenuLabel>
                                     {REASONING_LEVELS.map((level) => (
                                         <MenuRow
                                             key={level}
-                                            label={level}
-                                            hint={level === 'disabled' ? 'off' : 'thinking'}
+                                            label={t(REASONING_LABEL_KEY[level])}
+                                            hint={
+                                                level === 'disabled'
+                                                    ? t('composer.reasoningOffHint')
+                                                    : t('composer.reasoningOnHint')
+                                            }
                                             active={reasoningEffort === level}
                                             onClick={() => onReasoningEffortChange(level)}
                                         />
@@ -413,7 +578,7 @@ export default function ChatComposer(props: Props): JSX.Element {
                         {/* Voice */}
                         {toolButton(
                             TbMicrophone,
-                            isListening ? 'Recording… click to stop' : 'Voice input',
+                            isListening ? t('composer.recording') : t('composer.voice'),
                             () => {
                                 closeMenu();
                                 onToggleListening();
@@ -434,7 +599,7 @@ export default function ChatComposer(props: Props): JSX.Element {
                                 whileTap={BUTTON_TAP}
                                 transition={BUTTON_SPRING}
                                 className="shrink-0 cursor-pointer rounded-full bg-red-500/90 p-2 text-white transition-colors hover:bg-red-500 md:p-2.5"
-                                title="Stop"
+                                title={t('composer.stop')}
                             >
                                 <span className="block h-4 w-4 rounded-sm bg-white md:h-5 md:w-5" />
                             </motion.button>
@@ -450,7 +615,7 @@ export default function ChatComposer(props: Props): JSX.Element {
                                         ? 'cursor-pointer text-accent hover:bg-accent/10'
                                         : 'cursor-not-allowed text-text/40'
                                 }`}
-                                title="Send message"
+                                title={t('composer.send')}
                             >
                                 <IoSend className="h-5 w-5 md:h-6 md:w-6" />
                             </motion.button>
@@ -461,7 +626,7 @@ export default function ChatComposer(props: Props): JSX.Element {
 
             {messagesLength === 0 && !attachedFile && (
                 <p className="mt-3 hidden text-center text-xs text-text/60 md:block">
-                    Press Enter to send • Shift + Enter for new line
+                    {t('composer.hint')}
                 </p>
             )}
         </form>
@@ -564,4 +729,3 @@ function AttachItem({
         </motion.label>
     );
 }
-

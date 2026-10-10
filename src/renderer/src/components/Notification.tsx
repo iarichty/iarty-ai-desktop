@@ -1,9 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbCheck, TbX, TbAlertTriangle, TbInfoCircle } from 'react-icons/tb';
-import {
-    useNotification,
-    type NotificationType,
-} from '@/context/NotificationContext';
+import { useNotification, type NotificationType } from '@/context/NotificationContext';
+import { useLanguage } from '@/context/useLanguage';
 
 const ICONS: Record<NotificationType, JSX.Element> = {
     success: <TbCheck className="text-emerald-500" />,
@@ -29,6 +27,7 @@ function NotificationItem({
     type: NotificationType;
 }): JSX.Element {
     const { removeNotification } = useNotification();
+    const { t } = useLanguage();
 
     return (
         <motion.div
@@ -49,7 +48,7 @@ function NotificationItem({
             <button
                 onClick={() => removeNotification(id)}
                 className="shrink-0 rounded-xl p-1.5 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                aria-label="Dismiss notification"
+                aria-label={t('notification.dismiss')}
             >
                 <TbX className="text-gray-400" />
             </button>

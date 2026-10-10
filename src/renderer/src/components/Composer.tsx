@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { TbSend, TbSquare } from 'react-icons/tb';
 import { Button } from './Button';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     value: string;
@@ -19,11 +20,12 @@ export function Composer({
     onChange,
     onSubmit,
     onStop,
-    placeholder = 'Type your message…',
+    placeholder,
     disabled,
     streaming,
     hint,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     const ref = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -51,24 +53,22 @@ export function Composer({
                     }}
                     rows={1}
                     spellCheck={false}
-                    placeholder={placeholder}
+                    placeholder={placeholder ?? t('composer.placeholder')}
                     className="max-h-48 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-base text-text-h outline-none placeholder:text-text"
                 />
                 {streaming ? (
                     <Button variant="danger" onClick={onStop}>
                         <TbSquare className="h-4 w-4" />
-                        Stop
+                        {t('composer.stop')}
                     </Button>
                 ) : (
                     <Button onClick={onSubmit} disabled={!canSend}>
                         <TbSend className="h-4 w-4" />
-                        Send
+                        {t('composer.send')}
                     </Button>
                 )}
             </div>
-            <p className="mt-2 text-center text-[11px] text-text">
-                {hint ?? 'Enter to send · Shift+Enter for a new line'}
-            </p>
+            <p className="mt-2 text-center text-[11px] text-text">{hint ?? t('composer.hint')}</p>
         </div>
     );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bridge } from '@/lib/bridge';
 import { useNotification } from '@/context/NotificationContext';
+import { useLanguage } from '@/context/useLanguage';
 import type { ChatMessage, StreamEvent } from '@shared/types';
 import type {
     PrdDesign,
@@ -56,6 +57,7 @@ const EMPTY_OUTPUTS: PrdOutputs = { prd_markdown: '', database_schema: '', page_
  */
 export function usePrdBuilder(): UsePrdBuilder {
     const { addNotification } = useNotification();
+    const { t } = useLanguage();
 
     const [messages, setMessages] = useState<PrdMessage[]>([]);
     const [status, setStatus] = useState<PrdSessionStatus | 'idle'>('idle');
@@ -136,9 +138,7 @@ export function usePrdBuilder(): UsePrdBuilder {
                 const markFailed = (message: string): void => {
                     setMessages((prev) =>
                         prev.map((m) =>
-                            m.id === assistantId
-                                ? { ...m, content: message, failed: true }
-                                : m,
+                            m.id === assistantId ? { ...m, content: message, failed: true } : m,
                         ),
                     );
                 };
@@ -158,7 +158,9 @@ export function usePrdBuilder(): UsePrdBuilder {
                             accumulated += event.content;
                             const next = accumulated;
                             setMessages((prev) =>
-                                prev.map((m) => (m.id === assistantId ? { ...m, content: next } : m)),
+                                prev.map((m) =>
+                                    m.id === assistantId ? { ...m, content: next } : m,
+                                ),
                             );
                         } else if (event.type === 'done') {
                             if (onDone) onDone(accumulated);
@@ -176,11 +178,14 @@ export function usePrdBuilder(): UsePrdBuilder {
 
                 // Safety net: never leave the stage locked if the main process
                 // drops the terminal event (crash, window close, etc.).
-                safety = setTimeout(() => {
-                    if (addPlaceholder && accumulated) return finish(accumulated);
-                    if (addPlaceholder) markFailed('Request timed out');
-                    finish(null);
-                }, 10 * 60 * 1000);
+                safety = setTimeout(
+                    () => {
+                        if (addPlaceholder && accumulated) return finish(accumulated);
+                        if (addPlaceholder) markFailed(t('errors.requestTimeout'));
+                        finish(null);
+                    },
+                    10 * 60 * 1000,
+                );
 
                 bridge.features
                     .start({ path, model, history, fields })
@@ -193,7 +198,7 @@ export function usePrdBuilder(): UsePrdBuilder {
                     })
                     .catch((err) => {
                         const message =
-                            err instanceof Error ? err.message : 'Failed to start request';
+                            err instanceof Error ? err.message : t('errors.startFailed');
                         if (addPlaceholder) markFailed(message);
                         addNotification(message, 'error');
                         finish(null);
@@ -232,10 +237,7 @@ export function usePrdBuilder(): UsePrdBuilder {
         async (model: string) => {
             if (isGenerating || isRefining) return;
             if (!isPrdReadyToGenerate(messagesRef.current)) {
-                addNotification(
-                    'Please answer at least 2 rounds of questions before generating the PRD.',
-                    'info',
-                );
+                addNotification(t('prd.answerRounds'), 'info');
                 return;
             }
             setStatus('generating');
@@ -268,7 +270,7 @@ export function usePrdBuilder(): UsePrdBuilder {
             setIsGenerating(false);
             setStatus(result ? 'generated' : 'refining');
         },
-        [isGenerating, isRefining, runStream, addNotification],
+        [isGenerating, isRefining, runStream, addNotification, t],
     );
 
     const design_ = useCallback(
@@ -291,14 +293,14 @@ export function usePrdBuilder(): UsePrdBuilder {
                     },
                     false,
                 );
-                addNotification('Design recommendations ready!', 'success');
+                addNotification(t('prd.designReady'), 'success');
             } catch {
-                addNotification('Failed to generate design recommendations.', 'error');
+                addNotification(t('prd.designFail'), 'error');
             } finally {
                 setIsDesigning(false);
             }
         },
-        [isDesigning, isRefining, isGenerating, runStream, addNotification],
+        [isDesigning, isRefining, isGenerating, runStream, addNotification, t],
     );
 
     const suggest = useCallback(
@@ -313,7 +315,7 @@ export function usePrdBuilder(): UsePrdBuilder {
             if (!lastAssistant || lastAssistant.failed || !lastAssistant.content.trim()) {
                 setSuggestions([]);
                 if (!opts?.silent) {
-                    addNotification('No assistant question to suggest answers for.', 'info');
+                    addNotification(t('prd.noQuestion'), 'info');
                 }
                 return;
             }
@@ -341,12 +343,12 @@ export function usePrdBuilder(): UsePrdBuilder {
                 const parsed = parseSuggestionOutput(accumulated);
                 if (parsed) setSuggestions(parsed);
             } catch {
-                if (!opts?.silent) addNotification('Could not load suggested answers.', 'info');
+                if (!opts?.silent) addNotification(t('prd.suggestFail'), 'info');
             } finally {
                 if (suggestReqId.current === requestId) setIsSuggesting(false);
             }
         },
-        [runStream, addNotification],
+        [runStream, addNotification, t],
     );
 
     const editMessage = useCallback(
@@ -444,4 +446,3 @@ export function usePrdBuilder(): UsePrdBuilder {
         loadSession,
     };
 }
-

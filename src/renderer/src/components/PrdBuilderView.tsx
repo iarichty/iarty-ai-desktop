@@ -43,6 +43,7 @@ import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign } from '@/types/prd';
 import { containsPrdOutput, getFileIcon, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     models: UnifiedModel[];
@@ -50,12 +51,7 @@ interface Props {
     autoSave?: boolean;
 }
 
-const IDEA_CHIPS = [
-    'A fitness tracking app with social challenges',
-    'SaaS dashboard for inventory management',
-    'Mobile marketplace for handmade crafts',
-    'AI-powered study planner for students',
-];
+const IDEA_CHIPS = ['prd.idea1', 'prd.idea2', 'prd.idea3', 'prd.idea4'];
 
 /**
  * PRD Builder — a rich, multi-turn interview that produces a PRD, database
@@ -67,6 +63,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     const prd = usePrdBuilder();
     const sessions = useSessions('prd-builder');
     const { addNotification } = useNotification();
+    const { t } = useLanguage();
 
     const [prompt, setPrompt] = useState('');
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -105,8 +102,8 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     /* ── Local session auto-save ────────────────────────────────────────── */
     const firstUserText = prd.messages.find((m) => m.role === 'user')?.content ?? '';
     const sessionTitle = useMemo(
-        () => deriveTitle(prd.projectTitle || firstUserText, 'PRD session'),
-        [prd.projectTitle, firstUserText],
+        () => deriveTitle(prd.projectTitle || firstUserText, t('prd.sessionTitle')),
+        [prd.projectTitle, firstUserText, t],
     );
     const sessionPayload = useMemo<PrdSessionPayload | null>(
         () =>
@@ -142,7 +139,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
         async (id: string) => {
             const stored = await sessions.load(id);
             if (!stored) {
-                addNotification('Could not open that session.', 'error');
+                addNotification(t('prd.openFailed'), 'error');
                 return;
             }
             const p = stored.payload as PrdSessionPayload;
@@ -155,9 +152,9 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
             });
             setSessionId(stored.id);
             setActiveSessionId(stored.id);
-            addNotification('Session restored', 'success');
+            addNotification(t('prd.restored'), 'success');
         },
-        [sessions, prd, addNotification],
+        [sessions, prd, addNotification, t],
     );
 
     const handleNewSession = useCallback(() => {
@@ -185,19 +182,19 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
             };
             recognition.onerror = (event) => {
                 setIsListening(false);
-                addNotification(`Speech error: ${event.error}`, 'error');
+                addNotification(`${t('prd.speechError')}: ${event.error}`, 'error');
             };
         }
-    }, [addNotification]);
+    }, [addNotification, t]);
 
     const toggleListening = useCallback(() => {
         if (!recognitionRef.current) {
-            addNotification('Speech recognition is not supported in this environment.', 'error');
+            addNotification(t('prd.speechUnsupported'), 'error');
             return;
         }
         if (isListening) recognitionRef.current.stop();
         else recognitionRef.current.start();
-    }, [addNotification, isListening]);
+    }, [addNotification, isListening, t]);
 
     /* ── Keep the transcript scrolled to the newest message ─────────────── */
     useEffect(() => {
@@ -287,11 +284,11 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                 .toLowerCase();
             const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
             downloadBlob(blob, `${safeTitle}_${dateStr}.zip`);
-            addNotification('Session exported as ZIP package', 'success');
+            addNotification(t('prd.exportOk'), 'success');
         } catch {
-            addNotification('Failed to export PRD session', 'error');
+            addNotification(t('prd.exportFail'), 'error');
         }
-    }, [prd, hasOutputs, addNotification]);
+    }, [prd, hasOutputs, addNotification, t]);
 
     const handleImport = useCallback(
         async (file: File) => {
@@ -311,15 +308,12 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                 const id = newSessionId('prd-builder');
                 setSessionId(id);
                 setActiveSessionId(id);
-                addNotification('Session imported successfully', 'success');
+                addNotification(t('prd.importOk'), 'success');
             } catch (err) {
-                addNotification(
-                    err instanceof Error ? err.message : 'Import failed — invalid file',
-                    'error',
-                );
+                addNotification(err instanceof Error ? err.message : t('prd.importFail'), 'error');
             }
         },
-        [prd, addNotification],
+        [prd, addNotification, t],
     );
 
     const handleImportChange = useCallback(
@@ -387,7 +381,9 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     onAddNotification={addNotification}
                     onRegenerate={() => void prd.generate(modelCode)}
                     isRegenerating={prd.isGenerating}
-                    onGenerateDesign={canGenerateDesign ? () => void prd.design_(modelCode) : undefined}
+                    onGenerateDesign={
+                        canGenerateDesign ? () => void prd.design_(modelCode) : undefined
+                    }
                     isDesigning={prd.isDesigning}
                     onBackToChat={() => setShowResults(false)}
                 />
@@ -403,11 +399,11 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     onDelete={(id) => void sessions.remove(id)}
                     onNew={handleNewSession}
                     onClearAll={() => void sessions.clearAll()}
-                    label="Sessions"
+                    label={t('prd.sessions')}
                 />
                 <Button variant="outline" size="sm" onClick={handleNewSession}>
                     <TbPlus className="h-4 w-4" />
-                    New
+                    {t('prd.newBtn')}
                 </Button>
             </NavbarPortal>
 
@@ -417,7 +413,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     {canGenerate && (
                         <Button size="sm" onClick={() => void prd.generate(modelCode)}>
                             <TbWand className="h-4 w-4" />
-                            Generate PRD
+                            {t('prd.generate')}
                         </Button>
                     )}
                     {canGenerateDesign && (
@@ -428,13 +424,13 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                             disabled={prd.isDesigning}
                         >
                             <TbPalette className="h-4 w-4" />
-                            {prd.isDesigning ? 'Designing…' : 'Generate Design'}
+                            {prd.isDesigning ? t('prd.designing') : t('prd.generateDesign')}
                         </Button>
                     )}
                     {hasOutputs && (
                         <Button size="sm" variant="outline" onClick={() => setShowResults(true)}>
                             <TbLayoutSidebarRightExpand className="h-4 w-4" />
-                            Open PRD
+                            {t('prd.open')}
                         </Button>
                     )}
 
@@ -447,13 +443,17 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                         onChange={handleImportChange}
                         className="hidden"
                     />
-                    <Button variant="ghost" size="sm" onClick={() => importInputRef.current?.click()}>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => importInputRef.current?.click()}
+                    >
                         <TbUpload className="h-4 w-4" />
-                        Import
+                        {t('prd.import')}
                     </Button>
                     <Button variant="ghost" size="sm" onClick={handleExport}>
                         <TbArchive className="h-4 w-4" />
-                        Export
+                        {t('prd.export')}
                     </Button>
                 </div>
 
@@ -472,13 +472,11 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                                 <div className="relative mb-5 inline-block">
                                     <div className="absolute inset-0 bg-linear-to-r from-accent to-accent-2 opacity-20 blur-2xl" />
                                     <h1 className="relative bg-linear-to-br from-accent via-accent to-accent-2 bg-clip-text text-5xl font-black tracking-tight text-transparent md:text-6xl">
-                                        PRD Builder
+                                        {t('prd.heroTitle')}
                                     </h1>
                                 </div>
                                 <p className="mx-auto max-w-2xl text-base text-text md:text-lg">
-                                    Describe your product idea below. The AI will ask clarifying
-                                    questions, then generate a complete PRD, database schema, and page
-                                    flow.
+                                    {t('prd.heroDesc')}
                                 </p>
                             </div>
 
@@ -498,10 +496,10 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                                 className="mt-6 flex w-full flex-col items-center gap-3"
                             >
                                 <div className="flex flex-wrap justify-center gap-2">
-                                    {IDEA_CHIPS.map((idea, i) => (
+                                    {IDEA_CHIPS.map((ideaKey, i) => (
                                         <motion.button
-                                            key={idea}
-                                            onClick={() => setPrompt(idea)}
+                                            key={ideaKey}
+                                            onClick={() => setPrompt(t(ideaKey))}
                                             animate={{ y: [0, -2, 0] }}
                                             transition={{
                                                 duration: 4,
@@ -513,7 +511,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                                             whileTap={{ scale: 0.97 }}
                                             className="cursor-pointer rounded-full border border-border bg-[color:var(--surface)]/70 px-3 py-1.5 text-xs text-text-h transition-colors hover:border-accent hover:text-accent"
                                         >
-                                            {idea}
+                                            {t(ideaKey)}
                                         </motion.button>
                                     ))}
                                 </div>
@@ -523,7 +521,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                                     className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-text transition-colors hover:text-accent"
                                 >
                                     <TbUpload className="h-3.5 w-3.5" />
-                                    Have a saved session? Import it
+                                    {t('prd.haveSession')}
                                 </button>
                             </motion.div>
                         </div>
@@ -540,11 +538,11 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                                         </div>
                                         <div>
                                             <h2 className="text-sm font-bold text-text-h">
-                                                {prd.projectTitle || 'PRD Refinement'}
+                                                {prd.projectTitle || t('prd.refinement')}
                                             </h2>
                                             <p className="font-mono text-[10px] text-text">
-                                                Status: {prd.status.toUpperCase()} ·{' '}
-                                                {prd.messages.length} messages
+                                                {t('prd.status')}: {prd.status.toUpperCase()} ·{' '}
+                                                {prd.messages.length} {t('prd.messages')}
                                             </p>
                                         </div>
                                     </div>
@@ -559,8 +557,12 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                                             index={index}
                                             isLast={index === prd.messages.length - 1}
                                             isStreaming={prd.isRefining || prd.isGenerating}
-                                            onEdit={(id, c) => void prd.editMessage(id, c, modelCode)}
-                                            onRegenerate={(id) => void prd.regenerateFrom(id, modelCode)}
+                                            onEdit={(id, c) =>
+                                                void prd.editMessage(id, c, modelCode)
+                                            }
+                                            onRegenerate={(id) =>
+                                                void prd.regenerateFrom(id, modelCode)
+                                            }
                                             onGeneratePrd={
                                                 message.role === 'assistant' &&
                                                 index === prd.messages.length - 1 &&
@@ -612,16 +614,17 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
 
 /* ── PRD generation progress card ────────────────────────────────────────── */
 function PrdStreamProgress({ raw, isDone }: { raw: string; isDone: boolean }): JSX.Element {
+    const { t } = useLanguage();
     const hasPrdMarkdown = /"prd_markdown"\s*:/.test(raw);
     const hasDbSchema = /"database_schema"\s*:/.test(raw);
     const hasPageFlow = /"page_flow"\s*:/.test(raw);
     const hasDesign = raw.includes('design_styles');
 
     const steps = [
-        { label: 'Synthesizing requirements', icon: TbFileText, done: true },
-        { label: 'Drafting PRD document', icon: TbFileText, done: hasPrdMarkdown },
-        { label: 'Designing database schema', icon: TbDatabase, done: hasDbSchema },
-        { label: 'Mapping page flow', icon: TbRoute, done: hasPageFlow },
+        { labelKey: 'prd.stepSynthesizing', icon: TbFileText, done: true },
+        { labelKey: 'prd.stepDrafting', icon: TbFileText, done: hasPrdMarkdown },
+        { labelKey: 'prd.stepSchema', icon: TbDatabase, done: hasDbSchema },
+        { labelKey: 'prd.stepFlow', icon: TbRoute, done: hasPageFlow },
     ];
 
     return (
@@ -633,11 +636,11 @@ function PrdStreamProgress({ raw, isDone }: { raw: string; isDone: boolean }): J
                     <Loader className="h-4 w-4 shrink-0" />
                 )}
                 <span className="text-xs font-bold text-neutral-200">
-                    {isDone ? 'PRD artifacts generated' : 'Generating PRD artifacts...'}
+                    {isDone ? t('prd.artifactsReady') : t('prd.artifactsGenerating')}
                 </span>
                 {!isDone && hasDesign && (
                     <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-indigo-300">
-                        Design
+                        {t('prd.design')}
                     </span>
                 )}
             </div>
@@ -646,7 +649,7 @@ function PrdStreamProgress({ raw, isDone }: { raw: string; isDone: boolean }): J
                     const Icon = step.icon;
                     return (
                         <div
-                            key={step.label}
+                            key={step.labelKey}
                             className="flex items-center gap-2.5 text-xs font-medium"
                         >
                             {step.done ? (
@@ -663,7 +666,7 @@ function PrdStreamProgress({ raw, isDone }: { raw: string; isDone: boolean }): J
                                         : 'text-neutral-400'
                                 }
                             >
-                                {step.label}
+                                {t(step.labelKey)}
                             </span>
                         </div>
                     );
@@ -693,6 +696,7 @@ function PrdBubble({
     onGeneratePrd?: () => void;
     onOpenResults?: () => void;
 }): JSX.Element {
+    const { t } = useLanguage();
     const isUser = message.role === 'user';
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(message.content);
@@ -722,7 +726,7 @@ function PrdBubble({
                             }}
                             className="cursor-pointer px-3 py-1 text-xs font-medium text-text hover:text-text-h"
                         >
-                            Cancel
+                            {t('common.cancel')}
                         </button>
                         <button
                             onClick={() => {
@@ -732,7 +736,7 @@ function PrdBubble({
                             disabled={!draft.trim()}
                             className="cursor-pointer rounded-lg bg-accent px-3 py-1 text-xs font-medium text-[color:var(--accent-contrast)] disabled:opacity-50"
                         >
-                            Save &amp; Submit
+                            {t('common.saveAndSubmit')}
                         </button>
                     </div>
                 </div>
@@ -751,7 +755,9 @@ function PrdBubble({
                 </div>
             ) : null}
 
-            <div className={`flex min-w-0 max-w-[85%] flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+            <div
+                className={`flex min-w-0 max-w-[85%] flex-col ${isUser ? 'items-end' : 'items-start'}`}
+            >
                 {isUser ? (
                     <div className="inline-block rounded-3xl rounded-tr-md border border-accent/40 bg-linear-to-br from-accent to-accent-2 px-5 py-2 text-[color:var(--accent-contrast)] shadow-lg">
                         <span className="whitespace-pre-wrap font-medium leading-relaxed">
@@ -767,22 +773,22 @@ function PrdBubble({
                 ) : message.content === '' && isStreaming ? (
                     <div className="flex items-center gap-3 py-2 text-sm font-medium text-text">
                         <Loader className="h-5 w-5 text-accent" />
-                        Thinking...
+                        {t('prd.thinking')}
                     </div>
                 ) : message.failed ? (
                     <div className="rounded-2xl bg-amber-500/10 px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400">
-                        Failed to generate a response. {message.content}
+                        {t('prd.failedPrefix')} {message.content}
                     </div>
                 ) : (
                     <div className="min-w-0 max-w-full text-[14px] leading-relaxed text-text-h">
                         {displayContent && (
-                            <FormattedContent content={displayContent} className="min-w-0 break-words" />
+                            <FormattedContent
+                                content={displayContent}
+                                className="min-w-0 break-words"
+                            />
                         )}
                         {isPrdOutput && (
-                            <PrdStreamProgress
-                                raw={message.content}
-                                isDone={!isStreaming}
-                            />
+                            <PrdStreamProgress raw={message.content} isDone={!isStreaming} />
                         )}
                     </div>
                 )}
@@ -806,7 +812,7 @@ function PrdBubble({
                             }}
                             className="cursor-pointer p-1 text-xs text-text/70 transition-colors hover:text-accent"
                         >
-                            Edit
+                            {t('prd.edit')}
                         </button>
                     )}
                     {!isUser && !isStreaming && isLast && (
@@ -814,7 +820,7 @@ function PrdBubble({
                             onClick={() => onRegenerate(message.id)}
                             className="cursor-pointer p-1 text-xs text-text/70 transition-colors hover:text-accent"
                         >
-                            Regenerate
+                            {t('prd.regenerate')}
                         </button>
                     )}
                     {onGeneratePrd && (
@@ -823,7 +829,7 @@ function PrdBubble({
                             className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-accent px-2.5 py-1 text-xs font-bold text-[color:var(--accent-contrast)]"
                         >
                             <TbWand className="h-3.5 w-3.5" />
-                            Generate PRD
+                            {t('prd.generate')}
                         </button>
                     )}
                     {onOpenResults && (
@@ -832,7 +838,7 @@ function PrdBubble({
                             className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-bold text-text-h hover:text-accent"
                         >
                             <TbLayoutSidebarRightExpand className="h-3.5 w-3.5" />
-                            Open PRD
+                            {t('prd.open')}
                         </button>
                     )}
                 </div>

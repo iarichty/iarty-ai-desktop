@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { bridge } from '@/lib/bridge';
+import { useLanguage } from '@/context/useLanguage';
 import type {
     AiPlan,
     AppSettings,
@@ -25,13 +26,18 @@ interface UseModels {
 
 /** Loads the cloud catalog and probes the configured local provider. */
 export function useModels(authenticated: boolean, settings: AppSettings): UseModels {
+    const { t } = useLanguage();
     const [cloudModels, setCloudModels] = useState<CloudModel[]>([]);
     const [local, setLocal] = useState<LocalProviderStatus | null>(null);
     const [loading, setLoading] = useState(false);
 
     const refreshLocal = useCallback(
         async (kind: LocalProviderKind, baseUrl: string, apiKey?: string) => {
-            const status = (await bridge.local.listModels(kind, baseUrl, apiKey)) as LocalProviderStatus;
+            const status = (await bridge.local.listModels(
+                kind,
+                baseUrl,
+                apiKey,
+            )) as LocalProviderStatus;
             setLocal(status);
         },
         [],
@@ -64,7 +70,7 @@ export function useModels(authenticated: boolean, settings: AppSettings): UseMod
             })),
         ...(local?.models ?? []).map<UnifiedModel>((m) => ({
             id: m.id,
-            label: `${m.label} (local)`,
+            label: `${m.label} (${t('models.localSuffix')})`,
             source: 'local',
             provider: m.kind,
             localKind: m.kind,
@@ -98,8 +104,7 @@ export function usePlan(authenticated: boolean): UsePlan {
     }, [authenticated, tick]);
 
     const limit = typeof plan?.plan === 'string' ? planLimit(plan.plan) : null;
-    const remaining =
-        plan && limit !== null ? Math.max(0, limit - (plan.usage ?? 0)) : null;
+    const remaining = plan && limit !== null ? Math.max(0, limit - (plan.usage ?? 0)) : null;
 
     return { plan, remaining, refresh: () => setTick((t) => t + 1) };
 }

@@ -8,6 +8,7 @@ import {
 } from 'react-icons/tb';
 import Modal from './Modal';
 import { AI_FEATURES } from '@/data/roles';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     isOpen: boolean;
@@ -37,12 +38,13 @@ export default function FeatureSelectionModal({
     onClose,
     onSelect,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="Advanced Features"
-            subtitle="Activate specialized AI capabilities for your tasks"
+            title={t('feature.title')}
+            subtitle={t('feature.subtitle')}
             icon={TbHierarchy2}
             accent="text-emerald-500"
         >
@@ -62,8 +64,10 @@ export default function FeatureSelectionModal({
                         <TbRestore className="text-text" />
                     </div>
                     <div>
-                        <span className="block text-sm font-bold text-text-h">Standard Chat</span>
-                        <span className="text-[10px] text-text">Regular conversational AI mode</span>
+                        <span className="block text-sm font-bold text-text-h">
+                            {t('feature.standard')}
+                        </span>
+                        <span className="text-[10px] text-text">{t('feature.standardDesc')}</span>
                     </div>
                 </button>
 
@@ -98,7 +102,8 @@ export default function FeatureSelectionModal({
                                     {displayLabel(feature)}
                                 </span>
                                 <span className="line-clamp-1 text-[10px] text-text">
-                                    Optimize AI for {displayLabel(feature).toLowerCase()} tasks
+                                    {t('feature.optimizeFor')} {displayLabel(feature).toLowerCase()}{' '}
+                                    {t('feature.tasks')}
                                 </span>
                             </div>
                             {isSelected && (

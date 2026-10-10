@@ -4,6 +4,7 @@ import { TbCheck, TbCopy, TbEdit, TbRefresh, TbAlertTriangle } from 'react-icons
 import type { ChatMessage } from '@shared/types';
 import Loader from './Loader';
 import FormattedContent from './FormattedContent';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     message: ChatMessage;
@@ -27,6 +28,7 @@ export default function MessageBubble({
     onEdit,
     onRegenerate,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState('');
     const [copied, setCopied] = useState(false);
@@ -54,11 +56,13 @@ export default function MessageBubble({
         >
             {isUser ? (
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-accent to-accent-2 text-[color:var(--accent-contrast)] shadow-lg">
-                    <span className="text-sm font-black">You</span>
+                    <span className="text-sm font-black">{t('messageBubble.you')}</span>
                 </div>
             ) : null}
 
-            <div className={`group flex max-w-[85%] flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+            <div
+                className={`group flex max-w-[85%] flex-col ${isUser ? 'items-end' : 'items-start'}`}
+            >
                 {isUser ? (
                     <div className="inline-block rounded-3xl rounded-tr-md border border-accent/40 bg-linear-to-br from-accent to-accent-2 px-5 py-2 text-[color:var(--accent-contrast)] shadow-lg transition-all duration-300 hover:shadow-xl">
                         <span className="whitespace-pre-wrap font-medium leading-relaxed">
@@ -68,14 +72,14 @@ export default function MessageBubble({
                 ) : message.content === '' && isLoading ? (
                     <div className="flex items-center gap-3 py-2 text-sm font-medium text-text">
                         <Loader className="h-5 w-5 text-accent" />
-                        Thinking...
+                        {t('messageBubble.thinking')}
                     </div>
                 ) : message.failed ? (
                     <div className="inline-flex items-center gap-3 rounded-2xl px-4 py-2.5">
                         <TbAlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
                         <div className="min-w-0">
                             <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-                                Failed to generate a response
+                                {t('messageBubble.failed')}
                             </p>
                             <p className="break-words text-xs text-amber-600/90 dark:text-amber-400/90">
                                 {message.content}
@@ -88,7 +92,7 @@ export default function MessageBubble({
                                 className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-amber-600 disabled:opacity-40"
                             >
                                 <TbRefresh className="h-3.5 w-3.5" />
-                                Try Again
+                                {t('messageBubble.tryAgain')}
                             </button>
                         )}
                     </div>
@@ -119,7 +123,7 @@ export default function MessageBubble({
                         <button
                             onClick={handleCopy}
                             className="cursor-pointer p-1 text-text/70 transition-colors hover:text-accent"
-                            title="Copy message"
+                            title={t('messageBubble.copy')}
                         >
                             {copied ? (
                                 <TbCheck className="h-4 w-4 text-emerald-500" />
@@ -135,21 +139,25 @@ export default function MessageBubble({
                                     setEditContent(message.content);
                                 }}
                                 className="cursor-pointer p-1 text-text/70 transition-colors hover:text-accent"
-                                title="Edit prompt"
+                                title={t('messageBubble.edit')}
                             >
                                 <TbEdit className="h-4 w-4" />
                             </button>
                         )}
 
-                        {!isUser && !isLoading && isLastAssistant && !message.failed && onRegenerate && (
-                            <button
-                                onClick={() => onRegenerate(index)}
-                                className="cursor-pointer p-1 text-text/70 transition-colors hover:text-accent"
-                                title="Regenerate response"
-                            >
-                                <TbRefresh className="h-4 w-4" />
-                            </button>
-                        )}
+                        {!isUser &&
+                            !isLoading &&
+                            isLastAssistant &&
+                            !message.failed &&
+                            onRegenerate && (
+                                <button
+                                    onClick={() => onRegenerate(index)}
+                                    className="cursor-pointer p-1 text-text/70 transition-colors hover:text-accent"
+                                    title={t('messageBubble.regenerate')}
+                                >
+                                    <TbRefresh className="h-4 w-4" />
+                                </button>
+                            )}
                     </div>
                 )}
 
@@ -170,14 +178,14 @@ export default function MessageBubble({
                                 onClick={() => setIsEditing(false)}
                                 className="cursor-pointer px-3 py-1 text-xs font-medium text-text hover:text-text-h"
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </button>
                             <button
                                 onClick={saveEdit}
                                 disabled={!editContent.trim()}
                                 className="cursor-pointer rounded-lg bg-accent px-3 py-1 text-xs font-medium text-[color:var(--accent-contrast)] transition-colors hover:opacity-90 disabled:opacity-50"
                             >
-                                Save &amp; Submit
+                                {t('common.saveAndSubmit')}
                             </button>
                         </div>
                     </motion.div>

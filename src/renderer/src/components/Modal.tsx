@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbX } from 'react-icons/tb';
 import type { IconType } from 'react-icons';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     isOpen: boolean;
@@ -27,6 +28,7 @@ export default function Modal({
     accent = 'text-accent',
     children,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     return (
         <AnimatePresence>
             {isOpen && (
@@ -59,7 +61,7 @@ export default function Modal({
                             <button
                                 onClick={onClose}
                                 className="cursor-pointer rounded-xl p-2 transition-colors hover:bg-[color:var(--surface-2)]"
-                                aria-label="Close"
+                                aria-label={t('modalClose')}
                             >
                                 <TbX className="text-2xl text-text" />
                             </button>

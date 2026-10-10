@@ -15,6 +15,8 @@ import { useSessionAutoSave } from '@/hooks/useSessionAutoSave';
 import { deriveTitle, newSessionId } from '@/lib/sessions';
 import { buildChatArchive, downloadBlob, parseChatSession } from '@/lib/sessionTransfer';
 import { useNotification } from '@/context/NotificationContext';
+import { useLanguage } from '@/context/useLanguage';
+import type { SlashCommandKey } from '@/config/SlashCommands';
 import MessageBubble from './MessageBubble';
 import ChatHero from './ChatHero';
 import ChatToolbar from './ChatToolbar';
@@ -40,15 +42,11 @@ interface Props {
  * feature pickers, voice input, and export/import/reset. Every conversation is
  * also auto-saved to disk (see the `sessions` bridge) with a browsable history.
  */
-export function ChatPanel({
-    models,
-    selected,
-    onCloudUsed,
-    autoSave = true,
-}: Props): JSX.Element {
+export function ChatPanel({ models, selected, onCloudUsed, autoSave = true }: Props): JSX.Element {
     const sessions = useSessions('chat');
     const chat = useChat();
     const { addNotification } = useNotification();
+    const { t } = useLanguage();
 
     const [prompt, setPrompt] = useState('');
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -76,14 +74,12 @@ export function ChatPanel({
     /* ── Local session persistence ──────────────────────────────────────── */
     const firstUserText = chat.messages.find((m) => m.role === 'user')?.content ?? '';
     const sessionTitle = useMemo(
-        () => deriveTitle(firstUserText, 'New chat'),
-        [firstUserText],
+        () => deriveTitle(firstUserText, t('chatPanel.newChat')),
+        [firstUserText, t],
     );
     const sessionPayload = useMemo<ChatSessionPayload | null>(
         () =>
-            chat.messages.length > 0
-                ? { messages: chat.messages, modelId: selected?.id }
-                : null,
+            chat.messages.length > 0 ? { messages: chat.messages, modelId: selected?.id } : null,
         [chat.messages, selected?.id],
     );
 
@@ -108,16 +104,16 @@ export function ChatPanel({
         async (id: string) => {
             const stored = await sessions.load(id);
             if (!stored) {
-                addNotification('Could not open that session.', 'error');
+                addNotification(t('chatPanel.openFailed'), 'error');
                 return;
             }
             const payload = stored.payload as ChatSessionPayload;
             chat.setMessages(payload.messages ?? []);
             setSessionId(stored.id);
             setActiveSessionId(stored.id);
-            addNotification('Conversation restored', 'success');
+            addNotification(t('chatPanel.restored'), 'success');
         },
-        [sessions, chat, addNotification],
+        [sessions, chat, addNotification, t],
     );
 
     const handleNewSession = useCallback(() => {
@@ -145,19 +141,19 @@ export function ChatPanel({
             };
             recognition.onerror = (event) => {
                 setIsListening(false);
-                addNotification(`Speech error: ${event.error}`, 'error');
+                addNotification(`${t('chatPanel.speechError')}: ${event.error}`, 'error');
             };
         }
-    }, [addNotification]);
+    }, [addNotification, t]);
 
     const toggleListening = useCallback(() => {
         if (!recognitionRef.current) {
-            addNotification('Speech recognition is not supported in this environment.', 'error');
+            addNotification(t('chatPanel.speechUnsupported'), 'error');
             return;
         }
         if (isListening) recognitionRef.current.stop();
         else recognitionRef.current.start();
-    }, [addNotification, isListening]);
+    }, [addNotification, isListening, t]);
 
     /* ── Submit ─────────────────────────────────────────────────────────── */
     const sendOptions = {
@@ -204,11 +200,11 @@ export function ChatPanel({
         try {
             const blob = await buildChatArchive(chat.messages, new Map());
             downloadBlob(blob, `iarty-chat-${new Date().toISOString().slice(0, 10)}.zip`);
-            addNotification('Conversation saved successfully as ZIP!', 'success');
+            addNotification(t('chatPanel.saveOk'), 'success');
         } catch {
-            addNotification('Failed to export conversation.', 'error');
+            addNotification(t('chatPanel.saveFail'), 'error');
         }
-    }, [chat.messages, addNotification]);
+    }, [chat.messages, addNotification, t]);
 
     const importFile = useCallback(
         async (file: File) => {
@@ -218,12 +214,12 @@ export function ChatPanel({
                 const id = newSessionId('chat');
                 setSessionId(id);
                 setActiveSessionId(id);
-                addNotification('Conversation imported successfully!', 'success');
+                addNotification(t('chatPanel.importOk'), 'success');
             } catch {
-                addNotification('Failed to import conversation. Invalid file format.', 'error');
+                addNotification(t('chatPanel.importFail'), 'error');
             }
         },
-        [chat, addNotification],
+        [chat, addNotification, t],
     );
 
     const handleImportChange = useCallback(
@@ -242,6 +238,32 @@ export function ChatPanel({
         setSessionId(null);
         setActiveSessionId(null);
     }, [chat]);
+
+    /**
+     * Slash-command dispatcher for the composer.
+     *  - `/new`     → start a brand-new conversation (empty state)
+     *  - `/clear`   → clear the current conversation
+     *  - `/compact` → send a hidden instruction that summarizes and shortens the
+     *                 context, then continues from the condensed history
+     */
+    const handleRunCommand = useCallback(
+        (command: SlashCommandKey) => {
+            if (command === 'new' || command === 'clear') {
+                handleReset();
+                addNotification(
+                    command === 'new' ? t('commands.newTitle') : t('commands.clearTitle'),
+                    'success',
+                );
+                return;
+            }
+            if (command === 'compact') {
+                if (chat.messages.length === 0 || !selected) return;
+                void chat.send(t('commands.compactInstruction'), selected, sendOptions);
+                if (selected.source === 'cloud') onCloudUsed();
+            }
+        },
+        [handleReset, addNotification, chat, selected, t, onCloudUsed],
+    );
 
     const handleAttachFile = useCallback((file: File) => {
         setAttachedFile(file);
@@ -281,6 +303,7 @@ export function ChatPanel({
         reasoningEffort: chatSettings.reasoningEffort,
         onReasoningEffortChange: (reasoningEffort: ReasoningEffort) =>
             setChatSettings((prev) => ({ ...prev, reasoningEffort })),
+        onRunCommand: handleRunCommand,
     };
 
     return (
@@ -296,11 +319,11 @@ export function ChatPanel({
                     onDelete={(id) => void sessions.remove(id)}
                     onNew={handleNewSession}
                     onClearAll={() => void sessions.clearAll()}
-                    label="Chats"
+                    label={t('chatPanel.chats')}
                 />
                 <Button variant="outline" size="sm" onClick={handleReset}>
                     <TbPlus className="h-4 w-4" />
-                    New chat
+                    {t('chatPanel.newChat')}
                 </Button>
             </NavbarPortal>
 
@@ -319,6 +342,7 @@ export function ChatPanel({
                             onExport={handleExport}
                             onImport={importFile}
                             onReset={handleReset}
+                            onPickPrompt={setPrompt}
                             canExport={chat.messages.length > 0}
                             isThinking={chat.streaming}
                         />

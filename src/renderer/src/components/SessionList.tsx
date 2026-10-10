@@ -1,16 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-    TbHistory,
-    TbTrash,
-    TbPencil,
-    TbCheck,
-    TbX,
-    TbPlus,
-} from 'react-icons/tb';
+import { TbHistory, TbTrash, TbPencil, TbCheck, TbX, TbPlus } from 'react-icons/tb';
 import Loader from './Loader';
 import type { SessionSummary } from '@shared/types';
 import { formatSessionTime } from '@/lib/sessions';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     sessions: SessionSummary[];
@@ -41,8 +35,9 @@ export function SessionList({
     onDelete,
     onNew,
     onClearAll,
-    label = 'Sessions',
+    label,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     const [open, setOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [draft, setDraft] = useState('');
@@ -76,10 +71,10 @@ export function SessionList({
                 type="button"
                 onClick={() => setOpen((o) => !o)}
                 className="flex items-center gap-2 rounded-xl border border-border bg-[color:var(--surface)] px-3 py-2 text-sm text-text-h transition-colors hover:border-accent/60"
-                title="Saved sessions on this computer"
+                title={t('sessionList.triggerTitle')}
             >
                 <TbHistory className="h-4 w-4 text-accent" />
-                {label}
+                {label ?? t('sessionList.sessions')}
                 {sessions.length > 0 && (
                     <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
                         {sessions.length}
@@ -98,7 +93,7 @@ export function SessionList({
                     >
                         <div className="flex items-center justify-between px-2 py-1.5">
                             <span className="text-[10px] font-bold uppercase tracking-wide text-text">
-                                Saved on this device
+                                {t('sessionList.heading')}
                             </span>
                             {loading && <Loader className="h-3.5 w-3.5 text-accent" />}
                         </div>
@@ -112,12 +107,12 @@ export function SessionList({
                             className="mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-medium text-accent transition-colors hover:bg-[color:var(--surface-2)]"
                         >
                             <TbPlus className="h-4 w-4" />
-                            New session
+                            {t('sessionList.newSession')}
                         </button>
 
                         {sessions.length === 0 && !loading && (
                             <div className="px-3 py-4 text-center text-xs text-text">
-                                No saved sessions yet. They’ll appear here automatically.
+                                {t('sessionList.empty')}
                             </div>
                         )}
 
@@ -150,7 +145,7 @@ export function SessionList({
                                                     type="button"
                                                     onClick={() => commitRename(s.id)}
                                                     className="text-emerald-500 hover:opacity-80"
-                                                    aria-label="Save name"
+                                                    aria-label={t('sessionList.saveName')}
                                                 >
                                                     <TbCheck className="h-4 w-4" />
                                                 </button>
@@ -158,7 +153,7 @@ export function SessionList({
                                                     type="button"
                                                     onClick={() => setEditingId(null)}
                                                     className="text-text hover:text-text-h"
-                                                    aria-label="Cancel"
+                                                    aria-label={t('sessionList.cancel')}
                                                 >
                                                     <TbX className="h-4 w-4" />
                                                 </button>
@@ -182,14 +177,14 @@ export function SessionList({
                                                     </span>
                                                     <span className="text-[10px] text-text">
                                                         {formatSessionTime(s.updatedAt)} ·{' '}
-                                                        {s.itemCount} items
+                                                        {s.itemCount} {t('sessionList.items')}
                                                     </span>
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => startRename(s)}
                                                     className="opacity-0 transition-opacity group-hover:opacity-100 text-text hover:text-accent"
-                                                    aria-label="Rename session"
+                                                    aria-label={t('sessionList.rename')}
                                                 >
                                                     <TbPencil className="h-3.5 w-3.5" />
                                                 </button>
@@ -197,7 +192,7 @@ export function SessionList({
                                                     type="button"
                                                     onClick={() => onDelete(s.id)}
                                                     className="opacity-0 transition-opacity group-hover:opacity-100 text-text hover:text-red-500"
-                                                    aria-label="Delete session"
+                                                    aria-label={t('sessionList.delete')}
                                                 >
                                                     <TbTrash className="h-3.5 w-3.5" />
                                                 </button>
@@ -218,7 +213,7 @@ export function SessionList({
                                 className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] text-text transition-colors hover:bg-red-500/10 hover:text-red-500"
                             >
                                 <TbTrash className="h-3.5 w-3.5" />
-                                Delete all saved sessions
+                                {t('sessionList.deleteAll')}
                             </button>
                         )}
                     </motion.div>

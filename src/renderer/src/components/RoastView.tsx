@@ -6,6 +6,7 @@ import { useFeatureStream } from '@/hooks/useFeatureStream';
 import { Composer } from './Composer';
 import { OutputPanel } from './OutputPanel';
 import FeatureHero from './FeatureHero';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     feature: Extract<FeatureId, 'linkedin-roast' | 'ig-roast' | 'tiktok-roast'>;
@@ -14,33 +15,33 @@ interface Props {
 
 interface Meta {
     path: string;
-    title: string;
+    titleKey: string;
     icon: IconType;
-    placeholder: string;
-    hint: string;
+    placeholderKey: string;
+    hintKey: string;
 }
 
 const META: Record<Props['feature'], Meta> = {
     'linkedin-roast': {
         path: '/ai/linkedin-roast',
-        title: 'LinkedIn Roast',
+        titleKey: 'roast.linkedinTitle',
         icon: TbBrandLinkedin,
-        placeholder: 'Paste your LinkedIn “About” or résumé text…',
-        hint: 'Get a brutally honest roast plus recruiter-ready rewrites.',
+        placeholderKey: 'roast.linkedinPlaceholder',
+        hintKey: 'roast.linkedinHint',
     },
     'ig-roast': {
         path: '/ai/ig-roast',
-        title: 'Instagram Roast',
+        titleKey: 'roast.instagramTitle',
         icon: TbBrandInstagram,
-        placeholder: 'Paste your IG bio / caption…',
-        hint: 'Roast your Instagram presence and get optimised copy.',
+        placeholderKey: 'roast.instagramPlaceholder',
+        hintKey: 'roast.instagramHint',
     },
     'tiktok-roast': {
         path: '/ai/tiktok-roast',
-        title: 'TikTok Roast',
+        titleKey: 'roast.tiktokTitle',
         icon: TbBrandTiktok,
-        placeholder: 'Paste your TikTok bio / script…',
-        hint: 'Roast your TikTok profile and get higher-converting copy.',
+        placeholderKey: 'roast.tiktokPlaceholder',
+        hintKey: 'roast.tiktokHint',
     },
 };
 
@@ -49,6 +50,7 @@ const META: Record<Props['feature'], Meta> = {
  * the web app's `/ai/*-roast` endpoints (which stream a roast + optimisation).
  */
 export function RoastView({ feature, selected }: Props): JSX.Element {
+    const { t } = useLanguage();
     const stream = useFeatureStream();
     const [input, setInput] = useState('');
     const meta = META[feature];
@@ -67,7 +69,7 @@ export function RoastView({ feature, selected }: Props): JSX.Element {
     return (
         <div className="flex h-full flex-col">
             <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-2.5">
-                <span className="text-xs text-text">{meta.hint}</span>
+                <span className="text-xs text-text">{t(meta.hintKey)}</span>
             </div>
 
             <main className="flex-1 overflow-y-auto px-5">
@@ -79,13 +81,17 @@ export function RoastView({ feature, selected }: Props): JSX.Element {
                         emptyHint={
                             <>
                                 <Icon className="mb-2 h-8 w-8 text-accent" />
-                                {meta.placeholder}
+                                {t(meta.placeholderKey)}
                             </>
                         }
                     />
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center">
-                        <FeatureHero icon={Icon} title={meta.title} description={meta.hint} />
+                        <FeatureHero
+                            icon={Icon}
+                            title={t(meta.titleKey)}
+                            description={t(meta.hintKey)}
+                        />
                     </div>
                 )}
             </main>
@@ -97,8 +103,8 @@ export function RoastView({ feature, selected }: Props): JSX.Element {
                     onSubmit={() => void submit()}
                     onStop={stream.stop}
                     streaming={stream.streaming}
-                    placeholder={meta.placeholder}
-                    hint={`${meta.title} · Enter to send`}
+                    placeholder={t(meta.placeholderKey)}
+                    hint={`${t(meta.titleKey)} · ${t('roast.enterToSend')}`}
                 />
             </footer>
         </div>

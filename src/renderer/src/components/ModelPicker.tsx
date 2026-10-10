@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbCloud, TbCpu, TbChevronDown, TbCheck } from 'react-icons/tb';
 import type { UnifiedModel } from '@shared/types';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     models: UnifiedModel[];
@@ -13,6 +14,7 @@ interface Props {
 
 /** Dropdown grouping cloud and local models, with animated reveal. */
 export function ModelPicker({ models, selected, onSelect, compact = false }: Props): JSX.Element {
+    const { t } = useLanguage();
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -44,7 +46,9 @@ export function ModelPicker({ models, selected, onSelect, compact = false }: Pro
                     ) : (
                         <TbCloud className="h-4 w-4 shrink-0 text-accent" />
                     )}
-                    <span className="truncate">{selected ? selected.label : 'Select a model'}</span>
+                    <span className="truncate">
+                        {selected ? selected.label : t('models.select')}
+                    </span>
                 </span>
                 <motion.span animate={{ rotate: open ? 180 : 0 }} className="text-text">
                     <TbChevronDown className="h-4 w-4" />
@@ -62,7 +66,7 @@ export function ModelPicker({ models, selected, onSelect, compact = false }: Pro
                     >
                         {cloud.length > 0 && (
                             <Group
-                                label="Cloud · uses credits"
+                                label={t('models.cloud')}
                                 icon={<TbCloud className="h-3 w-3" />}
                                 items={cloud}
                                 selected={selected}
@@ -74,7 +78,7 @@ export function ModelPicker({ models, selected, onSelect, compact = false }: Pro
                         )}
                         {local.length > 0 && (
                             <Group
-                                label="Local · unlimited"
+                                label={t('models.local')}
                                 icon={<TbCpu className="h-3 w-3" />}
                                 items={local}
                                 selected={selected}
@@ -85,9 +89,7 @@ export function ModelPicker({ models, selected, onSelect, compact = false }: Pro
                             />
                         )}
                         {models.length === 0 && (
-                            <div className="px-3 py-2 text-xs text-text">
-                                No models available
-                            </div>
+                            <div className="px-3 py-2 text-xs text-text">{t('models.none')}</div>
                         )}
                     </motion.div>
                 )}

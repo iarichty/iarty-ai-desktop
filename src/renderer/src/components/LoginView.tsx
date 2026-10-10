@@ -4,6 +4,7 @@ import Loader from './Loader';
 import { Button } from './Button';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     loading: boolean;
@@ -14,6 +15,7 @@ interface Props {
 
 /** Full-screen sign-in prompt with an animated backdrop. */
 export function LoginView({ loading, error, status, onLogin }: Props): JSX.Element {
+    const { t } = useLanguage();
     return (
         <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-8">
             {/* Ambient animated backdrop */}
@@ -43,11 +45,8 @@ export function LoginView({ loading, error, status, onLogin }: Props): JSX.Eleme
                 </div>
 
                 <div className="text-center">
-                    <h1 className="text-2xl font-semibold tracking-tight">IARTY AI Desktop</h1>
-                    <p className="mt-2 text-sm text-text">
-                        Sign in with your IARTY account to use cloud models and credits — then bring
-                        your own local models alongside.
-                    </p>
+                    <h1 className="text-2xl font-semibold tracking-tight">{t('login.title')}</h1>
+                    <p className="mt-2 text-sm text-text">{t('login.subtitle')}</p>
                 </div>
 
                 <Button
@@ -60,12 +59,12 @@ export function LoginView({ loading, error, status, onLogin }: Props): JSX.Eleme
                     {loading ? (
                         <>
                             <Loader className="h-4 w-4" />
-                            Waiting for sign-in…
+                            {t('login.waiting')}
                         </>
                     ) : (
                         <>
                             <TbLock className="h-5 w-5" />
-                            Sign in to IARTY
+                            {t('login.signIn')}
                         </>
                     )}
                 </Button>
@@ -76,13 +75,10 @@ export function LoginView({ loading, error, status, onLogin }: Props): JSX.Eleme
                     disabled={loading}
                     className="text-xs text-text underline-offset-4 transition-colors hover:text-accent hover:underline disabled:opacity-50"
                 >
-                    Or continue in your browser
+                    {t('login.browser')}
                 </button>
 
-                <p className="text-center text-xs text-text">
-                    Sign in securely inside the app. Your session is kept on this device so cloud
-                    models, credits and every feature stay available until you sign out.
-                </p>
+                <p className="text-center text-xs text-text">{t('login.note')}</p>
 
                 {status && (
                     <motion.div

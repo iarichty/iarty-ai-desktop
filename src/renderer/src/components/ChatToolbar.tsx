@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { TbDownload, TbRestore, TbBrain } from 'react-icons/tb';
+import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
     hasMessages: boolean;
@@ -20,10 +21,14 @@ export default function ChatToolbar({
     onImport,
     onReset,
 }: Props): JSX.Element {
+    const { t } = useLanguage();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     return (
-        <div className="flex flex-wrap justify-center gap-4 animate-slideUp" style={{ animationDelay: '300ms' }}>
+        <div
+            className="flex flex-wrap justify-center gap-4 animate-slideUp"
+            style={{ animationDelay: '300ms' }}
+        >
             {isThinking ? (
                 <button
                     disabled
@@ -32,7 +37,7 @@ export default function ChatToolbar({
                     <div className="absolute inset-0 h-full w-full animate-shimmer-slide bg-linear-to-r from-transparent via-white/40 to-transparent" />
                     <span className="relative z-10 flex items-center gap-2">
                         <TbBrain className="h-5 w-5 animate-pulse" />
-                        Thinking...
+                        {t('chatToolbar.thinking')}
                     </span>
                 </button>
             ) : (
@@ -42,7 +47,7 @@ export default function ChatToolbar({
                     className="flex cursor-pointer items-center gap-2 rounded-2xl bg-linear-to-r from-accent to-accent-2 px-6 py-3 font-medium text-[color:var(--accent-contrast)] shadow-lg transition-all duration-300 hover:opacity-90 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     <TbDownload className="h-5 w-5" />
-                    Save Conversation
+                    {t('chatToolbar.save')}
                 </button>
             )}
 
@@ -60,7 +65,7 @@ export default function ChatToolbar({
                 className="group flex cursor-pointer items-center gap-2 rounded-2xl border-2 border-border bg-[color:var(--surface)] px-6 py-3 font-medium text-text-h shadow-lg transition-all duration-300 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
             >
                 <TbDownload className="h-5 w-5 rotate-180" />
-                Import
+                {t('chatToolbar.import')}
             </button>
 
             <button
@@ -71,7 +76,7 @@ export default function ChatToolbar({
                 <TbRestore
                     className={`h-5 w-5 ${isThinking ? '' : 'transition-transform duration-500 group-hover:-rotate-180'}`}
                 />
-                Reset
+                {t('chatToolbar.reset')}
             </button>
         </div>
     );

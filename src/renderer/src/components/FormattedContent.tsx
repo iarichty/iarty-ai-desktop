@@ -1,6 +1,9 @@
 import { useMemo, type ReactNode } from 'react';
 import { TbCopy, TbCheck } from 'react-icons/tb';
 import { useState } from 'react';
+import { useLanguage } from '@/context/useLanguage';
+
+type TFn = (key: string) => string;
 
 interface Props {
     content: string;
@@ -20,6 +23,7 @@ interface Props {
 
 /** Copy-to-clipboard button shared by code blocks. */
 function CopyButton({ text }: { text: string }): JSX.Element {
+    const { t } = useLanguage();
     const [copied, setCopied] = useState(false);
     const copy = (): void => {
         void navigator.clipboard.writeText(text);
@@ -31,7 +35,7 @@ function CopyButton({ text }: { text: string }): JSX.Element {
             type="button"
             onClick={copy}
             className="absolute right-2 top-2 rounded-lg border border-border bg-[color:var(--surface)] p-1.5 text-text opacity-0 transition-opacity hover:text-accent group-hover:opacity-100"
-            title="Copy code"
+            title={t('formattedContent.copyCode')}
         >
             {copied ? (
                 <TbCheck className="h-3.5 w-3.5 text-emerald-500" />
@@ -43,7 +47,7 @@ function CopyButton({ text }: { text: string }): JSX.Element {
 }
 
 /** Inline spans: bold, italic, inline code, links, images, bare URLs. */
-function renderInline(text: string): ReactNode[] {
+function renderInline(text: string, t: TFn): ReactNode[] {
     const pattern =
         /(`[^`]+`)|(!\[[^\]]*\]\([^)]*\))|(\[[^\]]+\]\([^)]*\))|(\*\*[^*]+\*\*)|(__[^_]+__)|(\*[^*]+\*)|(_[^_]+_)|(https?:\/\/[^\s)]+)/g;
 
@@ -69,10 +73,17 @@ function renderInline(text: string): ReactNode[] {
             const m = token.match(/!\[(.*?)\]\((.*?)\)/);
             if (m) {
                 nodes.push(
-                    <span key={key} className="my-4 block overflow-hidden rounded-2xl border border-border shadow-md">
-                        <img src={m[2]} alt={m[1]} className="h-auto max-w-full bg-white object-contain dark:bg-neutral-900" />
+                    <span
+                        key={key}
+                        className="my-4 block overflow-hidden rounded-2xl border border-border shadow-md"
+                    >
+                        <img
+                            src={m[2]}
+                            alt={m[1]}
+                            className="h-auto max-w-full bg-white object-contain dark:bg-neutral-900"
+                        />
                         <span className="block border-t border-border bg-[color:var(--surface-2)] py-1.5 text-center text-[10px] font-bold uppercase tracking-widest text-text">
-                            {m[1] || 'Generated image'}
+                            {m[1] || t('formattedContent.generatedImage')}
                         </span>
                     </span>,
                 );
@@ -121,11 +132,12 @@ function renderInline(text: string): ReactNode[] {
 
 /** A fenced code block with a language label and copy button. */
 function CodeBlock({ code, lang }: { code: string; lang: string }): JSX.Element {
+    const { t } = useLanguage();
     return (
         <div className="group relative my-3 overflow-hidden rounded-xl border border-border bg-[color:var(--surface-2)]">
             <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
                 <span className="font-mono text-[10px] uppercase tracking-widest text-text">
-                    {lang || 'code'}
+                    {lang || t('formattedContent.code')}
                 </span>
             </div>
             <pre className="overflow-x-auto px-3 py-2.5 text-[12.5px] leading-relaxed text-text-h">
@@ -136,7 +148,7 @@ function CodeBlock({ code, lang }: { code: string; lang: string }): JSX.Element 
     );
 }
 
-function renderBlocks(content: string): ReactNode[] {
+function renderBlocks(content: string, t: TFn): ReactNode[] {
     const nodes: ReactNode[] = [];
     // Split out fenced code blocks first, preserving order.
     const segments = content.split(/```/);
@@ -168,7 +180,7 @@ function renderBlocks(content: string): ReactNode[] {
                 >
                     {items.map((item, i) => (
                         <li key={i} className="leading-relaxed">
-                            {renderInline(item)}
+                            {renderInline(item, t)}
                         </li>
                     ))}
                 </ListTag>,
@@ -208,14 +220,16 @@ function renderBlocks(content: string): ReactNode[] {
                         key={`h-${segIndex}-${lineIndex}`}
                         className={`mt-3 mb-1 font-bold text-text-h ${size}`}
                     >
-                        {renderInline(heading[2])}
+                        {renderInline(heading[2], t)}
                     </p>,
                 );
                 return;
             }
 
             if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
-                nodes.push(<hr key={`hr-${segIndex}-${lineIndex}`} className="my-3 border-border" />);
+                nodes.push(
+                    <hr key={`hr-${segIndex}-${lineIndex}`} className="my-3 border-border" />,
+                );
                 return;
             }
 
@@ -226,7 +240,7 @@ function renderBlocks(content: string): ReactNode[] {
                         key={`q-${segIndex}-${lineIndex}`}
                         className="my-2 border-l-4 border-accent/50 bg-[color:var(--surface-2)] py-1.5 pl-3 italic text-text"
                     >
-                        {renderInline(quote[1])}
+                        {renderInline(quote[1], t)}
                     </blockquote>,
                 );
                 return;
@@ -234,7 +248,7 @@ function renderBlocks(content: string): ReactNode[] {
 
             nodes.push(
                 <p key={`p-${segIndex}-${lineIndex}`} className="leading-relaxed">
-                    {renderInline(line)}
+                    {renderInline(line, t)}
                 </p>,
             );
         });
@@ -246,6 +260,7 @@ function renderBlocks(content: string): ReactNode[] {
 }
 
 export default function FormattedContent({ content, className = '' }: Props): JSX.Element {
-    const blocks = useMemo(() => renderBlocks(content), [content]);
+    const { t } = useLanguage();
+    const blocks = useMemo(() => renderBlocks(content, t), [content, t]);
     return <div className={`break-words text-text-h ${className}`}>{blocks}</div>;
 }
