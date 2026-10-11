@@ -10,10 +10,6 @@ import {
     TbUpload,
     TbPlus,
     TbUser,
-    TbCircleCheckFilled,
-    TbFileText,
-    TbDatabase,
-    TbRoute,
 } from 'react-icons/tb';
 import type {
     CavemanMode,
@@ -43,7 +39,7 @@ import { SessionList } from './SessionList';
 import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign } from '@/types/prd';
-import { containsPrdOutput, getFileIcon, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
+import { getFileIcon, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
 import { getDesignStyleById, type DesignStyle } from '@/data/designStyles';
 import { useLanguage } from '@/context/useLanguage';
 
@@ -664,71 +660,6 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
         </>
     );
 }
-
-/* ── PRD generation progress card ────────────────────────────────────────── */
-function PrdStreamProgress({ raw, isDone }: { raw: string; isDone: boolean }): JSX.Element {
-    const { t } = useLanguage();
-    const hasPrdMarkdown = /"prd_markdown"\s*:/.test(raw);
-    const hasDbSchema = /"database_schema"\s*:/.test(raw);
-    const hasPageFlow = /"page_flow"\s*:/.test(raw);
-    const hasDesign = raw.includes('design_styles');
-
-    const steps = [
-        { labelKey: 'prd.stepSynthesizing', icon: TbFileText, done: true },
-        { labelKey: 'prd.stepDrafting', icon: TbFileText, done: hasPrdMarkdown },
-        { labelKey: 'prd.stepSchema', icon: TbDatabase, done: hasDbSchema },
-        { labelKey: 'prd.stepFlow', icon: TbRoute, done: hasPageFlow },
-    ];
-
-    return (
-        <div className="my-3 max-w-md rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 text-white shadow-xl">
-            <div className="mb-3 flex items-center gap-3">
-                {isDone ? (
-                    <TbCircleCheckFilled className="h-4 w-4 shrink-0 text-emerald-400" />
-                ) : (
-                    <Loader className="h-4 w-4 shrink-0" />
-                )}
-                <span className="text-xs font-bold text-neutral-200">
-                    {isDone ? t('prd.artifactsReady') : t('prd.artifactsGenerating')}
-                </span>
-                {!isDone && hasDesign && (
-                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-indigo-300">
-                        {t('prd.design')}
-                    </span>
-                )}
-            </div>
-            <div className="space-y-2">
-                {steps.map((step) => {
-                    const Icon = step.icon;
-                    return (
-                        <div
-                            key={step.labelKey}
-                            className="flex items-center gap-2.5 text-xs font-medium"
-                        >
-                            {step.done ? (
-                                <TbCircleCheckFilled className="h-4 w-4 shrink-0 text-emerald-400" />
-                            ) : isDone ? (
-                                <Icon className="h-4 w-4 shrink-0 text-neutral-600" />
-                            ) : (
-                                <Icon className="h-4 w-4 shrink-0 animate-pulse text-neutral-500" />
-                            )}
-                            <span
-                                className={
-                                    step.done
-                                        ? 'font-semibold text-neutral-100'
-                                        : 'text-neutral-400'
-                                }
-                            >
-                                {t(step.labelKey)}
-                            </span>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
-
 /* ── PRD message bubble ──────────────────────────────────────────────────── */
 function PrdBubble({
     message,
@@ -755,10 +686,8 @@ function PrdBubble({
     const [draft, setDraft] = useState(message.content);
 
     // Never surface the machine-readable PRD/design payload in the transcript:
-    // strip the ```prd-output fence (or bare JSON object) and render a progress
-    // card instead. Without this the raw JSON shows as "weird code", and its
-    // long unbroken lines force a horizontal scroll.
-    const isPrdOutput = !isUser && containsPrdOutput(message.content);
+    // strip the ```prd-output fence (or bare JSON object) so the raw JSON does
+    // not show as "weird code" or force a horizontal scroll.
     const displayContent = isUser ? message.content : stripPrdPayload(message.content);
 
     if (isUser && editing) {
@@ -839,9 +768,6 @@ function PrdBubble({
                                 content={displayContent}
                                 className="min-w-0 break-words"
                             />
-                        )}
-                        {isPrdOutput && (
-                            <PrdStreamProgress raw={message.content} isDone={!isStreaming} />
                         )}
                     </div>
                 )}
