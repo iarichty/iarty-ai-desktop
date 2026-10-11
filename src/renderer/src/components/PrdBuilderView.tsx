@@ -40,7 +40,7 @@ import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign } from '@/types/prd';
 import { getFileIcon, parseFlowchart, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
-import { deriveScreenNames } from '@/lib/mockupScreens';
+import { derivePageTargets, detectAvailableCategories, type MockupPageCategory } from '@/lib/mockupScreens';
 import { getDesignStyleById, type DesignStyle } from '@/data/designStyles';
 import { useLanguage } from '@/context/useLanguage';
 
@@ -70,6 +70,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     const [panelTab, setPanelTab] = useState<PrdOutputTab>('prd');
     const [selectedStyleId, setSelectedStyleId] = useState('');
     const [isStylePickerOpen, setIsStylePickerOpen] = useState(false);
+    const [mockupCategoryFilter, setMockupCategoryFilter] = useState<MockupPageCategory[]>([]);
     const [isListening, setIsListening] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -135,13 +136,36 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
         const flowLabels = prd.outputs.page_flow
             ? parseFlowchart(prd.outputs.page_flow).steps.map((s) => s.label)
             : [];
-        const screens = deriveScreenNames(
+        const allTargets = derivePageTargets(
             prd.outputs.prd_markdown,
             prd.outputs.page_flow,
             flowLabels,
         );
-        void prd.mockups_(modelCode, screens, buildChosenStylePayload());
-    }, [prd, modelCode, buildChosenStylePayload]);
+        // Respect the user's page-type filter (empty = all detected).
+        const targets =
+            mockupCategoryFilter.length > 0
+                ? allTargets.filter((t) => mockupCategoryFilter.includes(t.category))
+                : allTargets;
+        void prd.mockups_(modelCode, targets, buildChosenStylePayload());
+    }, [prd, modelCode, buildChosenStylePayload, mockupCategoryFilter]);
+
+    // Page targets derived from the PRD + the categories actually present, so
+    // the mockup panel only offers relevant page-type filters.
+    const mockupTargets = useMemo(
+        () =>
+            derivePageTargets(
+                prd.outputs.prd_markdown,
+                prd.outputs.page_flow,
+                prd.outputs.page_flow
+                    ? parseFlowchart(prd.outputs.page_flow).steps.map((s) => s.label)
+                    : [],
+            ),
+        [prd.outputs.prd_markdown, prd.outputs.page_flow],
+    );
+    const mockupAvailableCategories = useMemo(
+        () => detectAvailableCategories(mockupTargets),
+        [mockupTargets],
+    );
 
     const handleSelectDesignStyle = useCallback(
         (style: DesignStyle | null) => {
@@ -455,6 +479,11 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     mockups={prd.mockups}
                     onGenerateMockups={runGenerateMockups}
                     isGeneratingMockups={prd.isGeneratingMockups}
+                    mockupTargets={mockupTargets}
+                    mockupAvailableCategories={mockupAvailableCategories}
+                    mockupCategoryFilter={mockupCategoryFilter}
+                    onMockupCategoryFilterChange={setMockupCategoryFilter}
+                    mockupProgress={prd.mockupProgress}
                 />
             )}
 

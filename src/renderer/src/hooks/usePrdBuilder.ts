@@ -7,6 +7,7 @@ import type {
     PrdDesign,
     PrdMessage,
     PrdMockupPage,
+    PrdMockupProgress,
     PrdOutputs,
     PrdSessionStatus,
     PrdSuggestion,
@@ -20,6 +21,13 @@ import {
     toIsoNow,
     uuid,
 } from '@/lib/prdHelpers';
+import type { MockupTarget } from '@/lib/mockupScreens';
+
+/**
+ * Credits the backend charges per mockup page (mirrors backend
+ * CREDIT_COSTS.prdBuilderMockup). Used only to advertise the cost in the UI.
+ */
+const MOCKUP_CREDITS_PER_PAGE = 12;
 
 export type PrdStage = 'refine' | 'generate' | 'design' | 'suggest';
 
@@ -29,6 +37,8 @@ interface UsePrdBuilder {
     outputs: PrdOutputs;
     design: PrdDesign | null;
     mockups: PrdMockupPage[];
+    /** Live progress of a mockup run (one AI call per page). */
+    mockupProgress: PrdMockupProgress | null;
     projectTitle: string;
     suggestions: PrdSuggestion[];
     isRefining: boolean;
@@ -39,7 +49,7 @@ interface UsePrdBuilder {
     refine: (prompt: string, model: string) => Promise<void>;
     generate: (model: string) => Promise<void>;
     design_: (model: string, chosenStyle?: Record<string, unknown> | null) => Promise<void>;
-    mockups_: (model: string, pages: string[], chosenStyle?: Record<string, unknown> | null) => Promise<void>;
+    mockups_: (model: string, targets: MockupTarget[], chosenStyle?: Record<string, unknown> | null) => Promise<void>;
     suggest: (model: string, opts?: { silent?: boolean }) => Promise<void>;
     editMessage: (id: string, newContent: string, model: string) => Promise<void>;
     regenerateFrom: (id: string, model: string) => Promise<void>;
@@ -69,6 +79,7 @@ export function usePrdBuilder(): UsePrdBuilder {
     const [outputs, setOutputs] = useState<PrdOutputs>(EMPTY_OUTPUTS);
     const [design, setDesign] = useState<PrdDesign | null>(null);
     const [mockups, setMockups] = useState<PrdMockupPage[]>([]);
+    const [mockupProgress, setMockupProgress] = useState<PrdMockupProgress | null>(null);
     const [projectTitle, setProjectTitle] = useState('');
     const [suggestions, setSuggestions] = useState<PrdSuggestion[]>([]);
     const [isRefining, setIsRefining] = useState(false);
@@ -326,38 +337,87 @@ export function usePrdBuilder(): UsePrdBuilder {
     const mockups_ = useCallback(
         async (
             model: string,
-            pages: string[],
+            targets: MockupTarget[],
             chosenStyle?: Record<string, unknown> | null,
         ) => {
             if (isGeneratingMockups || isRefining || isGenerating) return;
-            if (!pages || pages.length === 0) {
+            if (!targets || targets.length === 0) {
                 addNotification(t('prd.mockupNoScreens'), 'info');
                 return;
             }
+
+            const history: ChatMessage[] = messagesRef.current.map((m) => ({
+                role: m.role,
+                content: m.content,
+            }));
+
+            // One AI call per page so each screen is rendered in full detail,
+            // run sequentially with live progress + credit reporting.
             setIsGeneratingMockups(true);
+            setMockupProgress({
+                total: targets.length,
+                completed: 0,
+                current: targets[0]?.name ?? null,
+                creditsPerPage: MOCKUP_CREDITS_PER_PAGE,
+            });
+
+            const collected: PrdMockupPage[] = [];
+            let completed = 0;
+
             try {
-                const history: ChatMessage[] = messagesRef.current.map((m) => ({
-                    role: m.role,
-                    content: m.content,
-                }));
-                const fields: Record<string, string> = { pages: JSON.stringify(pages) };
-                if (chosenStyle) fields.chosenStyle = JSON.stringify(chosenStyle);
-                await runStream(
-                    '/ai/prd-builder/mockup',
-                    fields,
-                    model,
-                    history,
-                    (full) => {
-                        const parsed = parseMockupOutput(full);
-                        if (parsed) setMockups(parsed);
-                    },
-                    false,
-                );
-                addNotification(t('prd.mockupReady'), 'success');
+                for (const target of targets) {
+                    setMockupProgress({
+                        total: targets.length,
+                        completed,
+                        current: target.name,
+                        creditsPerPage: MOCKUP_CREDITS_PER_PAGE,
+                    });
+
+                    const fields: Record<string, string> = {
+                        page: JSON.stringify(target.name),
+                        category: target.category,
+                    };
+                    if (chosenStyle) fields.chosenStyle = JSON.stringify(chosenStyle);
+
+                    let pageDone: PrdMockupPage | null = null;
+                    await runStream(
+                        '/ai/prd-builder/mockup',
+                        fields,
+                        model,
+                        history,
+                        (full) => {
+                            const parsed = parseMockupOutput(full);
+                            if (parsed && parsed.length > 0) {
+                                pageDone = parsed[0];
+                                setMockups([...collected, pageDone]);
+                            }
+                        },
+                        false,
+                    );
+
+                    if (pageDone) {
+                        collected.push(pageDone);
+                        completed += 1;
+                        setMockups([...collected]);
+                        setMockupProgress({
+                            total: targets.length,
+                            completed,
+                            current: null,
+                            creditsPerPage: MOCKUP_CREDITS_PER_PAGE,
+                        });
+                    }
+                }
+
+                if (collected.length > 0) {
+                    addNotification(t('prd.mockupReady'), 'success');
+                } else {
+                    addNotification(t('prd.mockupFail'), 'error');
+                }
             } catch {
                 addNotification(t('prd.mockupFail'), 'error');
             } finally {
                 setIsGeneratingMockups(false);
+                setMockupProgress(null);
             }
         },
         [isGeneratingMockups, isRefining, isGenerating, runStream, addNotification, t],
@@ -465,6 +525,7 @@ export function usePrdBuilder(): UsePrdBuilder {
         setOutputs(EMPTY_OUTPUTS);
         setDesign(null);
         setMockups([]);
+        setMockupProgress(null);
         setProjectTitle('');
         setSuggestions([]);
     }, []);
@@ -492,6 +553,7 @@ export function usePrdBuilder(): UsePrdBuilder {
         outputs,
         design,
         mockups,
+        mockupProgress,
         projectTitle,
         suggestions,
         isRefining,

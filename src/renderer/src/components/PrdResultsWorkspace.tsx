@@ -20,12 +20,18 @@ import type {
     PrdOutputs,
     PrdOutputTab,
     PrdMockupPage,
+    PrdMockupProgress,
     ParsedErDiagram,
     ParsedFlow,
 } from '@/types/prd';
 import { parseErDiagram, parseFlowchart } from '@/lib/prdHelpers';
 import { designPreviewUrl } from '@/data/designStyles';
-import { deriveScreenNames } from '@/lib/mockupScreens';
+import {
+    derivePageTargets,
+    detectAvailableCategories,
+    type MockupPageCategory,
+    type MockupTarget,
+} from '@/lib/mockupScreens';
 import Loader from './Loader';
 import FormattedContent from './FormattedContent';
 import PageMockupsPanel from './PageMockupsPanel';
@@ -52,6 +58,15 @@ interface Props {
     mockups?: PrdMockupPage[];
     onGenerateMockups?: () => void;
     isGeneratingMockups?: boolean;
+    /** Page targets derived from the PRD, with auto-detected categories. */
+    mockupTargets?: MockupTarget[];
+    /** Categories actually present in the PRD (for the type filter). */
+    mockupAvailableCategories?: MockupPageCategory[];
+    /** Selected category filter (empty array = all). */
+    mockupCategoryFilter?: MockupPageCategory[];
+    onMockupCategoryFilterChange?: (next: MockupPageCategory[]) => void;
+    /** Live progress of a running mockup generation. */
+    mockupProgress?: PrdMockupProgress | null;
 }
 
 const TABS: { key: PrdOutputTab; labelKey: string; icon: IconType }[] = [
@@ -84,6 +99,11 @@ export default function PrdResultsWorkspace({
     mockups = [],
     onGenerateMockups,
     isGeneratingMockups = false,
+    mockupTargets,
+    mockupAvailableCategories,
+    mockupCategoryFilter = [],
+    onMockupCategoryFilterChange,
+    mockupProgress = null,
 }: Props): JSX.Element {
     const { t } = useLanguage();
     const [copied, setCopied] = useState(false);
@@ -141,11 +161,21 @@ export default function PrdResultsWorkspace({
     const parsedFlow: ParsedFlow | null = outputs.page_flow
         ? parseFlowchart(outputs.page_flow)
         : null;
-    const screenNames = deriveScreenNames(
-        outputs.prd_markdown,
-        outputs.page_flow,
-        parsedFlow ? parsedFlow.steps.map((s) => s.label) : [],
-    );
+    // Prefer targets handed down from the view; otherwise derive them here.
+    const resolvedTargets =
+        mockupTargets ??
+        derivePageTargets(
+            outputs.prd_markdown,
+            outputs.page_flow,
+            parsedFlow ? parsedFlow.steps.map((s) => s.label) : [],
+        );
+    const resolvedCategories =
+        mockupAvailableCategories ?? detectAvailableCategories(resolvedTargets);
+    const filteredTargets =
+        mockupCategoryFilter.length > 0
+            ? resolvedTargets.filter((t) => mockupCategoryFilter.includes(t.category))
+            : resolvedTargets;
+    const screenNames = filteredTargets.map((t) => t.name);
 
     return (
         <div className="fixed inset-0 z-[60] flex flex-col bg-slate-50 text-slate-900 dark:bg-neutral-950 dark:text-white">
@@ -374,6 +404,11 @@ export default function PrdResultsWorkspace({
                                     <PageMockupsPanel
                                         pages={mockups}
                                         screenNames={screenNames}
+                                        targets={filteredTargets}
+                                        availableCategories={resolvedCategories}
+                                        categoryFilter={mockupCategoryFilter}
+                                        onCategoryFilterChange={onMockupCategoryFilterChange}
+                                        progress={mockupProgress}
                                         styleName={design?.chosen_style?.name}
                                         isGenerating={isGeneratingMockups}
                                         onGenerate={() => onGenerateMockups?.()}

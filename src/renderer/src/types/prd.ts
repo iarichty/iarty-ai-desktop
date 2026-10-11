@@ -87,6 +87,22 @@ export interface PrdMockupPage {
     html: string;
 }
 
+/**
+ * Live progress for a mockup generation run that renders one page per AI call,
+ * so the UI can show which page is in flight and how many credits have been
+ * spent so far.
+ */
+export interface PrdMockupProgress {
+    /** Total pages queued for this run. */
+    total: number;
+    /** How many pages have finished (successfully) so far. */
+    completed: number;
+    /** Name of the page currently being generated, if any. */
+    current: string | null;
+    /** Credits charged per page (base cost advertised to the user). */
+    creditsPerPage: number;
+}
+
 export interface DbColumn {
     name: string;
     type: string;

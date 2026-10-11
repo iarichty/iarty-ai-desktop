@@ -7,15 +7,33 @@ import {
     TbCopy,
     TbCheck,
     TbDownload,
+    TbCoin,
 } from 'react-icons/tb';
 import Loader from './Loader';
 import { useLanguage } from '@/context/useLanguage';
-import type { PrdMockupPage } from '@/types/prd';
+import {
+    MOCKUP_CATEGORY_LABELS,
+    MOCKUP_CATEGORY_ORDER,
+    type MockupPageCategory,
+    type MockupTarget,
+} from '@/lib/mockupScreens';
+import type { PrdMockupPage, PrdMockupProgress } from '@/types/prd';
 
 interface Props {
     pages: PrdMockupPage[];
     /** Screens the mockups would be generated for (from the PRD / page flow). */
     screenNames: string[];
+    /** Page targets with auto-detected categories (for the type filter). */
+    targets?: MockupTarget[];
+    /** Categories actually present in the PRD. */
+    availableCategories?: MockupPageCategory[];
+    /** Selected category filter (empty = all). */
+    categoryFilter?: MockupPageCategory[];
+    onCategoryFilterChange?: (next: MockupPageCategory[]) => void;
+    /** Live progress of a running generation (one AI call per page). */
+    progress?: PrdMockupProgress | null;
+    /** Credits charged per page. */
+    creditsPerPage?: number;
     styleName?: string;
     isGenerating: boolean;
     onGenerate: () => void;
@@ -27,12 +45,19 @@ type DeviceMode = 'desktop' | 'mobile';
 
 /**
  * Per-page UI mockups generated from the PRD / page flow, each rendered in a
- * live, sandboxed iframe. Screens are switchable and previewable at desktop or
- * mobile width, and each mockup can be copied or downloaded as standalone HTML.
+ * live, sandboxed iframe. Generation runs one page per AI call; this panel lets
+ * the user narrow the run to specific page types and shows live progress plus
+ * the credit cost of the run.
  */
 export default function PageMockupsPanel({
     pages,
     screenNames,
+    targets = [],
+    availableCategories = [],
+    categoryFilter = [],
+    onCategoryFilterChange,
+    progress = null,
+    creditsPerPage = 12,
     styleName,
     isGenerating,
     onGenerate,
@@ -48,13 +73,87 @@ export default function PageMockupsPanel({
     const activeIdx = activeIdxRaw < pages.length ? activeIdxRaw : 0;
     const active = pages[activeIdx];
 
-    if (isGenerating) {
-        return (
-            <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <Loader className="h-8 w-8" />
-                <span className="animate-pulse text-xs font-semibold text-text">
-                    {t('prd.mockupGenerating')}
+    const pageCount = screenNames.length;
+    const estimatedCredits = pageCount * creditsPerPage;
+
+    // Category chips let the user narrow which page types get mockups. Only
+    // categories that actually exist in the PRD are shown.
+    const handleToggleCategory = (cat: MockupPageCategory): void => {
+        if (!onCategoryFilterChange) return;
+        const isOn = categoryFilter.includes(cat);
+        const next = isOn ? categoryFilter.filter((c) => c !== cat) : [...categoryFilter, cat];
+        onCategoryFilterChange(next);
+    };
+
+    const categoryChips =
+        availableCategories.length > 0 && onCategoryFilterChange ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-0.5 text-[11px] font-semibold text-text">
+                    {t('prd.mockupPageTypes')}
                 </span>
+                {MOCKUP_CATEGORY_ORDER.filter((c) => availableCategories.includes(c)).map((cat) => {
+                    // Empty filter = "all selected", so render as active.
+                    const on = categoryFilter.length === 0 || categoryFilter.includes(cat);
+                    const count = targets.filter((tt) => tt.category === cat).length;
+                    return (
+                        <button
+                            key={cat}
+                            onClick={() => handleToggleCategory(cat)}
+                            className={`shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                                on
+                                    ? 'border-accent bg-accent text-[color:var(--accent-contrast)]'
+                                    : 'border-border text-text hover:bg-surface'
+                            }`}
+                            title={`${count} ${MOCKUP_CATEGORY_LABELS[cat]}`}
+                        >
+                            {t(`prd.mockupCat_${cat}`)}
+                            <span className="ml-1 opacity-70">{count}</span>
+                        </button>
+                    );
+                })}
+            </div>
+        ) : null;
+
+    if (isGenerating) {
+        const total = progress?.total ?? pageCount;
+        const done = progress?.completed ?? 0;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        const usedCredits = done * creditsPerPage;
+        const totalCredits = total * creditsPerPage;
+
+        return (
+            <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-4 py-16">
+                <Loader className="h-8 w-8" />
+                <div className="w-full space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-text-h">
+                        <span className="animate-pulse">
+                            {progress?.current
+                                ? t('prd.mockupGeneratingPage').replace('{name}', progress.current)
+                                : t('prd.mockupFinalizing')}
+                        </span>
+                        <span>
+                            {done} / {total}
+                        </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-surface">
+                        <div
+                            className="h-full bg-accent transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-text">
+                        <span className="inline-flex items-center gap-1">
+                            <TbCoin className="h-3.5 w-3.5" />
+                            {t('prd.mockupCreditsUsed')
+                                .replace('{used}', String(usedCredits))
+                                .replace('{total}', String(totalCredits))}
+                        </span>
+                        <span>{pct}%</span>
+                    </div>
+                    <p className="pt-1 text-center text-[11px] text-text/70">
+                        {t('prd.mockupOnePerCall')}
+                    </p>
+                </div>
             </div>
         );
     }
@@ -72,6 +171,14 @@ export default function PageMockupsPanel({
                         </>
                     ) : null}
                 </p>
+
+                {categoryChips && (
+                    <div className="flex flex-col items-center gap-2 pt-1">
+                        <p className="text-[11px] text-text/70">{t('prd.mockupChooseTypes')}</p>
+                        {categoryChips}
+                    </div>
+                )}
+
                 {screenNames.length > 0 && (
                     <p className="max-w-lg text-center text-[11px] font-mono text-text/70">
                         {screenNames.length} {t('prd.screens')}:{' '}
@@ -79,9 +186,19 @@ export default function PageMockupsPanel({
                         {screenNames.length > 6 ? ' …' : ''}
                     </p>
                 )}
+
+                <p className="inline-flex items-center gap-1 text-xs text-text">
+                    <TbCoin className="h-3.5 w-3.5" />
+                    {t('prd.mockupEstimatedCredits')
+                        .replace('{total}', String(estimatedCredits))
+                        .replace('{pages}', String(pageCount))
+                        .replace('{per}', String(creditsPerPage))}
+                </p>
+
                 <button
                     onClick={onGenerate}
-                    className="mt-2 flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-xs font-bold text-[color:var(--accent-contrast)] transition-all hover:opacity-90"
+                    disabled={pageCount === 0}
+                    className="mt-2 flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-xs font-bold text-[color:var(--accent-contrast)] transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                     <TbDeviceDesktop className="h-4 w-4" />
                     {t('prd.generateMockups')}
@@ -176,6 +293,10 @@ export default function PageMockupsPanel({
                     </button>
                     <button
                         onClick={onGenerate}
+                        title={t('prd.mockupEstimatedCredits')
+                            .replace('{total}', String(estimatedCredits))
+                            .replace('{pages}', String(pageCount))
+                            .replace('{per}', String(creditsPerPage))}
                         className="flex items-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-[color:var(--accent-contrast)] transition-all hover:opacity-90"
                     >
                         <TbRefresh className="h-3.5 w-3.5" />
@@ -183,6 +304,8 @@ export default function PageMockupsPanel({
                     </button>
                 </div>
             </div>
+
+            {categoryChips && <div className="flex flex-col gap-2">{categoryChips}</div>}
 
             {/* Screen tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1">

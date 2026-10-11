@@ -48,3 +48,89 @@ export const deriveScreenNames = (
 
     return Array.from(names).slice(0, 10);
 };
+
+/** The kind of page a mockup target represents, used to guide layout density. */
+export type MockupPageCategory = 'landing' | 'dashboard' | 'main' | 'other';
+
+/** A single screen to generate a mockup for, with its auto-detected category. */
+export interface MockupTarget {
+    name: string;
+    category: MockupPageCategory;
+}
+
+/** Human labels for each page category (UI-facing). */
+export const MOCKUP_CATEGORY_LABELS: Record<MockupPageCategory, string> = {
+    landing: 'Landing page',
+    dashboard: 'Dashboard',
+    main: 'Main screen',
+    other: 'Other screen',
+};
+
+/** Order categories are listed in the picker. */
+export const MOCKUP_CATEGORY_ORDER: MockupPageCategory[] = [
+    'landing',
+    'dashboard',
+    'main',
+    'other',
+];
+
+/**
+ * Classifies a single screen name into a page category using keyword heuristics.
+ * Landing = public marketing pages, Dashboard = authenticated app shell, Main =
+ * the product's core working screen; anything else falls back to `other`.
+ */
+export const classifyPage = (name: string): MockupPageCategory => {
+    const n = name.toLowerCase();
+
+    // Landing / public marketing surface.
+    if (
+        /(landing|marketing|home\s*page|homepage|^home$|^beranda$|halaman\s*utama|hero|pricing|^pricing|about|^about$|features?\b|public|^index$|waitlist|coming\s*soon|tentang)/i.test(
+            n,
+        )
+    ) {
+        return 'landing';
+    }
+
+    // Dashboard / authenticated app shell.
+    if (
+        /(dashboard|admin|analytics|overview|metric|kpi|report|insight|console|panel\s*admin|back\s*office)/i.test(
+            n,
+        )
+    ) {
+        return 'dashboard';
+    }
+
+    // Core working screen (feed, list, detail, editor, checkout, settings…).
+    if (
+        /(shop|store|catalog|product|cart|checkout|order|list|feed|detail|profile|settings|inbox|chat|message|calendar|kanban|board|editor|form|table|search|hasil|katalog|daftar|pesanan|pengaturan|profil)/i.test(
+            n,
+        )
+    ) {
+        return 'main';
+    }
+
+    return 'other';
+};
+
+/**
+ * Builds the list of mockup targets for the PRD: every derived screen name
+ * tagged with its auto-detected category. Order is preserved (flow order first).
+ */
+export const derivePageTargets = (
+    prdMarkdown: string,
+    pageFlow: string,
+    flowLabels: string[] = [],
+): MockupTarget[] =>
+    deriveScreenNames(prdMarkdown, pageFlow, flowLabels).map((name) => ({
+        name,
+        category: classifyPage(name),
+    }));
+
+/**
+ * Detects which page categories actually exist in the PRD, so the UI can offer
+ * only the relevant options (e.g. no dashboard page → no Dashboard checkbox).
+ */
+export const detectAvailableCategories = (targets: MockupTarget[]): MockupPageCategory[] => {
+    const present = new Set(targets.map((t) => t.category));
+    return MOCKUP_CATEGORY_ORDER.filter((c) => present.has(c));
+};
