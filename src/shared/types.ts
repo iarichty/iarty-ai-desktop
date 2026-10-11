@@ -213,6 +213,8 @@ export interface PrdSessionPayload {
     design: unknown | null;
     projectTitle: string;
     status: string;
+    /** Generated per-page UI mockups, so they survive session reload. */
+    mockups?: unknown[];
 }
 
 /** Minutes / Study feature session payload. */

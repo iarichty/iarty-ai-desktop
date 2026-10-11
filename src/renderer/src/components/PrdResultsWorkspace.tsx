@@ -67,6 +67,10 @@ interface Props {
     onMockupCategoryFilterChange?: (next: MockupPageCategory[]) => void;
     /** Live progress of a running mockup generation. */
     mockupProgress?: PrdMockupProgress | null;
+    /** Cancels an in-flight mockup run, keeping pages already generated. */
+    onCancelMockups?: () => void;
+    /** Regenerates a single page (retry for a failed page, or refresh one page). */
+    onRegenerateMockupPage?: (target: MockupTarget) => void;
 }
 
 const TABS: { key: PrdOutputTab; labelKey: string; icon: IconType }[] = [
@@ -104,6 +108,8 @@ export default function PrdResultsWorkspace({
     mockupCategoryFilter = [],
     onMockupCategoryFilterChange,
     mockupProgress = null,
+    onCancelMockups,
+    onRegenerateMockupPage,
 }: Props): JSX.Element {
     const { t } = useLanguage();
     const [copied, setCopied] = useState(false);
@@ -409,6 +415,8 @@ export default function PrdResultsWorkspace({
                                         categoryFilter={mockupCategoryFilter}
                                         onCategoryFilterChange={onMockupCategoryFilterChange}
                                         progress={mockupProgress}
+                                        onCancel={onCancelMockups}
+                                        onRegeneratePage={onRegenerateMockupPage}
                                         styleName={design?.chosen_style?.name}
                                         isGenerating={isGeneratingMockups}
                                         onGenerate={() => onGenerateMockups?.()}

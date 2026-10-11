@@ -8,8 +8,11 @@ import {
     TbCheck,
     TbDownload,
     TbCoin,
+    TbPlayerStop,
+    TbAlertTriangle,
 } from 'react-icons/tb';
 import Loader from './Loader';
+import Modal from './Modal';
 import { useLanguage } from '@/context/useLanguage';
 import {
     MOCKUP_CATEGORY_LABELS,
@@ -18,6 +21,9 @@ import {
     type MockupTarget,
 } from '@/lib/mockupScreens';
 import type { PrdMockupPage, PrdMockupProgress } from '@/types/prd';
+
+/** Runs costing more than this many credits ask for confirmation first. */
+const CONFIRM_CREDIT_THRESHOLD = 30;
 
 interface Props {
     pages: PrdMockupPage[];
@@ -34,6 +40,10 @@ interface Props {
     progress?: PrdMockupProgress | null;
     /** Credits charged per page. */
     creditsPerPage?: number;
+    /** Cancels the in-flight run, keeping pages already generated. */
+    onCancel?: () => void;
+    /** Regenerates a single page (retry for a failed page). */
+    onRegeneratePage?: (target: MockupTarget) => void;
     styleName?: string;
     isGenerating: boolean;
     onGenerate: () => void;
@@ -58,6 +68,8 @@ export default function PageMockupsPanel({
     onCategoryFilterChange,
     progress = null,
     creditsPerPage = 12,
+    onCancel,
+    onRegeneratePage,
     styleName,
     isGenerating,
     onGenerate,
@@ -68,6 +80,7 @@ export default function PageMockupsPanel({
     const [activeIdxRaw, setActiveIdx] = useState(0);
     const [device, setDevice] = useState<DeviceMode>('desktop');
     const [copied, setCopied] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
 
     // Clamp during render so a shrinking page list never leaves a stale index.
     const activeIdx = activeIdxRaw < pages.length ? activeIdxRaw : 0;
@@ -75,6 +88,49 @@ export default function PageMockupsPanel({
 
     const pageCount = screenNames.length;
     const estimatedCredits = pageCount * creditsPerPage;
+
+    // Gate the generate action behind a confirmation when the run is large.
+    const requestGenerate = (): void => {
+        if (estimatedCredits > CONFIRM_CREDIT_THRESHOLD) {
+            setConfirmOpen(true);
+            return;
+        }
+        onGenerate();
+    };
+
+    const confirmDialog = (
+        <Modal
+            isOpen={confirmOpen}
+            onClose={() => setConfirmOpen(false)}
+            title={t('prd.mockupConfirmTitle').replace('{pages}', String(pageCount))}
+            icon={TbCoin}
+            accent="text-accent"
+        >
+            <p className="text-sm text-text">
+                {t('prd.mockupConfirmBody')
+                    .replace('{total}', String(estimatedCredits))
+                    .replace('{pages}', String(pageCount))
+                    .replace('{per}', String(creditsPerPage))}
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-2">
+                <button
+                    onClick={() => setConfirmOpen(false)}
+                    className="rounded-xl px-4 py-2 text-xs font-bold text-text hover:bg-surface"
+                >
+                    {t('common.cancel')}
+                </button>
+                <button
+                    onClick={() => {
+                        setConfirmOpen(false);
+                        onGenerate();
+                    }}
+                    className="rounded-xl bg-accent px-4 py-2 text-xs font-bold text-[color:var(--accent-contrast)] shadow-md hover:opacity-90"
+                >
+                    {t('prd.generateMockups')}
+                </button>
+            </div>
+        </Modal>
+    );
 
     // Category chips let the user narrow which page types get mockups. Only
     // categories that actually exist in the PRD are shown.
@@ -153,6 +209,17 @@ export default function PageMockupsPanel({
                     <p className="pt-1 text-center text-[11px] text-text/70">
                         {t('prd.mockupOnePerCall')}
                     </p>
+                    {onCancel && (
+                        <div className="flex justify-center pt-2">
+                            <button
+                                onClick={onCancel}
+                                className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text hover:bg-surface/70"
+                            >
+                                <TbPlayerStop className="h-3.5 w-3.5" />
+                                {t('composer.stop')}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -160,50 +227,53 @@ export default function PageMockupsPanel({
 
     if (pages.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center gap-3 py-12">
-                <TbDeviceDesktop className="h-8 w-8 text-text/40" />
-                <p className="max-w-lg text-center text-sm text-text">
-                    {t('prd.mockupEmpty')}
-                    {styleName ? (
-                        <>
-                            {' '}
-                            <span className="font-bold text-text-h">“{styleName}”</span>
-                        </>
-                    ) : null}
-                </p>
-
-                {categoryChips && (
-                    <div className="flex flex-col items-center gap-2 pt-1">
-                        <p className="text-[11px] text-text/70">{t('prd.mockupChooseTypes')}</p>
-                        {categoryChips}
-                    </div>
-                )}
-
-                {screenNames.length > 0 && (
-                    <p className="max-w-lg text-center text-[11px] font-mono text-text/70">
-                        {screenNames.length} {t('prd.screens')}:{' '}
-                        {screenNames.slice(0, 6).join(' · ')}
-                        {screenNames.length > 6 ? ' …' : ''}
+            <>
+                {confirmDialog}
+                <div className="flex flex-col items-center justify-center gap-3 py-12">
+                    <TbDeviceDesktop className="h-8 w-8 text-text/40" />
+                    <p className="max-w-lg text-center text-sm text-text">
+                        {t('prd.mockupEmpty')}
+                        {styleName ? (
+                            <>
+                                {' '}
+                                <span className="font-bold text-text-h">“{styleName}”</span>
+                            </>
+                        ) : null}
                     </p>
-                )}
 
-                <p className="inline-flex items-center gap-1 text-xs text-text">
-                    <TbCoin className="h-3.5 w-3.5" />
-                    {t('prd.mockupEstimatedCredits')
-                        .replace('{total}', String(estimatedCredits))
-                        .replace('{pages}', String(pageCount))
-                        .replace('{per}', String(creditsPerPage))}
-                </p>
+                    {categoryChips && (
+                        <div className="flex flex-col items-center gap-2 pt-1">
+                            <p className="text-[11px] text-text/70">{t('prd.mockupChooseTypes')}</p>
+                            {categoryChips}
+                        </div>
+                    )}
 
-                <button
-                    onClick={onGenerate}
-                    disabled={pageCount === 0}
-                    className="mt-2 flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-xs font-bold text-[color:var(--accent-contrast)] transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    <TbDeviceDesktop className="h-4 w-4" />
-                    {t('prd.generateMockups')}
-                </button>
-            </div>
+                    {screenNames.length > 0 && (
+                        <p className="max-w-lg text-center text-[11px] font-mono text-text/70">
+                            {screenNames.length} {t('prd.screens')}:{' '}
+                            {screenNames.slice(0, 6).join(' · ')}
+                            {screenNames.length > 6 ? ' …' : ''}
+                        </p>
+                    )}
+
+                    <p className="inline-flex items-center gap-1 text-xs text-text">
+                        <TbCoin className="h-3.5 w-3.5" />
+                        {t('prd.mockupEstimatedCredits')
+                            .replace('{total}', String(estimatedCredits))
+                            .replace('{pages}', String(pageCount))
+                            .replace('{per}', String(creditsPerPage))}
+                    </p>
+
+                    <button
+                        onClick={requestGenerate}
+                        disabled={pageCount === 0}
+                        className="mt-2 flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-xs font-bold text-[color:var(--accent-contrast)] transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                        <TbDeviceDesktop className="h-4 w-4" />
+                        {t('prd.generateMockups')}
+                    </button>
+                </div>
+            </>
         );
     }
 
@@ -233,8 +303,51 @@ export default function PageMockupsPanel({
         URL.revokeObjectURL(url);
     };
 
+    const downloadAll = async (): Promise<void> => {
+        const ready = pages.filter((p) => p.status !== 'failed' && p.html.trim());
+        if (ready.length === 0) {
+            onNotify(t('prd.mockupNothingToDownload'), 'info');
+            return;
+        }
+        try {
+            const { default: JSZip } = await import('jszip');
+            const zip = new JSZip();
+            const slug = (n: string): string => n.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+
+            const links = ready
+                .map((p) => `<li><a href="${slug(p.name)}.html">${p.name}</a></li>`)
+                .join('');
+            zip.file(
+                'index.html',
+                `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${
+                    projectTitle || 'Mockups'
+                }</title><style>body{font-family:system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 16px}a{color:#4f46e5}</style></head><body><h1>${
+                    projectTitle || 'UI Mockups'
+                }</h1><ul>${links}</ul></body></html>`,
+            );
+            ready.forEach((p) => zip.file(`${slug(p.name)}.html`, p.html));
+
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${slug(projectTitle || 'mockups')}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            onNotify(
+                t('prd.mockupDownloadedAll').replace('{count}', String(ready.length)),
+                'success',
+            );
+        } catch {
+            onNotify(t('prd.mockupArchiveFail'), 'error');
+        }
+    };
+
     return (
         <div className="space-y-4">
+            {confirmDialog}
             {/* Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -292,7 +405,15 @@ export default function PageMockupsPanel({
                         {t('prd.download')}
                     </button>
                     <button
-                        onClick={onGenerate}
+                        onClick={() => void downloadAll()}
+                        title={t('prd.mockupDownloadAllHint')}
+                        className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-semibold text-text hover:bg-surface"
+                    >
+                        <TbDownload className="h-3.5 w-3.5" />
+                        {t('prd.mockupDownloadAll')}
+                    </button>
+                    <button
+                        onClick={requestGenerate}
                         title={t('prd.mockupEstimatedCredits')
                             .replace('{total}', String(estimatedCredits))
                             .replace('{pages}', String(pageCount))
@@ -309,58 +430,110 @@ export default function PageMockupsPanel({
 
             {/* Screen tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                {pages.map((p, i) => (
-                    <button
-                        key={p.id}
-                        onClick={() => setActiveIdx(i)}
-                        className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
-                            i === activeIdx
-                                ? 'bg-accent text-[color:var(--accent-contrast)] shadow-md'
-                                : 'border border-border text-text hover:bg-surface'
-                        }`}
-                        title={p.description || p.name}
-                    >
-                        {p.name}
-                    </button>
-                ))}
+                {pages.map((p, i) => {
+                    const failed = p.status === 'failed';
+                    return (
+                        <div key={p.id} className="flex shrink-0 items-center">
+                            <button
+                                onClick={() => setActiveIdx(i)}
+                                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                    i === activeIdx
+                                        ? 'bg-accent text-[color:var(--accent-contrast)] shadow-md'
+                                        : failed
+                                          ? 'border border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'
+                                          : 'border border-border text-text hover:bg-surface'
+                                }`}
+                                title={p.error || p.description || p.name}
+                            >
+                                {failed && <TbAlertTriangle className="h-3.5 w-3.5" />}
+                                {p.name}
+                            </button>
+                            {onRegeneratePage && (
+                                <button
+                                    onClick={() =>
+                                        onRegeneratePage({
+                                            name: p.name,
+                                            category: p.category ?? 'other',
+                                        })
+                                    }
+                                    className="ml-0.5 rounded-lg p-1 text-text/60 hover:text-text"
+                                    title={t('prd.regenerate')}
+                                >
+                                    <TbRefresh className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Preview */}
             {active && (
                 <div className="space-y-2">
-                    {active.description && (
-                        <p className="text-xs text-text">{active.description}</p>
+                    {active.status === 'failed' ? (
+                        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 py-12">
+                            <TbAlertTriangle className="h-8 w-8 text-amber-500" />
+                            <p className="text-sm font-semibold text-amber-500">
+                                “{active.name}” {t('prd.mockupFailedShort')}
+                            </p>
+                            {active.error && (
+                                <p className="max-w-md px-4 text-center text-xs text-text/70">
+                                    {active.error}
+                                </p>
+                            )}
+                            {onRegeneratePage && (
+                                <button
+                                    onClick={() =>
+                                        onRegeneratePage({
+                                            name: active.name,
+                                            category: active.category ?? 'other',
+                                        })
+                                    }
+                                    className="mt-1 flex items-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-[color:var(--accent-contrast)] shadow-md hover:opacity-90"
+                                >
+                                    <TbRefresh className="h-3.5 w-3.5" />
+                                    {t('prd.retryPage')}
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            {active.description && (
+                                <p className="text-xs text-text">{active.description}</p>
+                            )}
+                            <motion.div
+                                key={`${active.id}-${device}`}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.25 }}
+                                className="overflow-hidden rounded-2xl border border-border bg-white"
+                            >
+                                <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                                    <span className="flex gap-1">
+                                        <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                                        <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                                    </span>
+                                    <span className="truncate text-[10px] font-mono text-text">
+                                        {projectTitle ? `${projectTitle} · ` : ''}
+                                        {active.name}
+                                    </span>
+                                </div>
+                                <div
+                                    className={`mx-auto bg-white transition-all ${
+                                        device === 'mobile' ? 'w-[390px] max-w-full' : 'w-full'
+                                    }`}
+                                >
+                                    <iframe
+                                        title={`${active.name} mockup`}
+                                        srcDoc={active.html}
+                                        sandbox="allow-scripts allow-same-origin allow-popups"
+                                        className="h-[70vh] w-full border-0 bg-white"
+                                    />
+                                </div>
+                            </motion.div>
+                        </>
                     )}
-                    <motion.div
-                        key={`${active.id}-${device}`}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25 }}
-                        className="overflow-hidden rounded-2xl border border-border bg-white"
-                    >
-                        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-                            <span className="flex gap-1">
-                                <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-                                <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                            </span>
-                            <span className="truncate text-[10px] font-mono text-text">
-                                {projectTitle ? `${projectTitle} · ` : ''}
-                                {active.name}
-                            </span>
-                        </div>
-                        <div
-                            className={`mx-auto bg-white transition-all ${
-                                device === 'mobile' ? 'w-[390px] max-w-full' : 'w-full'
-                            }`}
-                        >
-                            <iframe
-                                title={`${active.name} mockup`}
-                                srcDoc={active.html}
-                                className="h-[70vh] w-full border-0 bg-white"
-                            />
-                        </div>
-                    </motion.div>
                 </div>
             )}
         </div>

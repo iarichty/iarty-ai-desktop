@@ -38,9 +38,9 @@ import DesignStylePicker from './DesignStylePicker';
 import { SessionList } from './SessionList';
 import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
-import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign } from '@/types/prd';
+import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign, PrdMockupPage } from '@/types/prd';
 import { getFileIcon, parseFlowchart, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
-import { derivePageTargets, detectAvailableCategories, type MockupPageCategory } from '@/lib/mockupScreens';
+import { derivePageTargets, detectAvailableCategories, type MockupPageCategory, type MockupTarget } from '@/lib/mockupScreens';
 import { getDesignStyleById, type DesignStyle } from '@/data/designStyles';
 import { useLanguage } from '@/context/useLanguage';
 
@@ -156,6 +156,14 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
         void prd.mockups_(modelCode, targets, buildChosenStylePayload());
     }, [prd, modelCode, buildChosenStylePayload, mockupCategoryFilter]);
 
+    /** Regenerates a single page (retry for a failed page, or refresh one page). */
+    const runRegenerateMockupPage = useCallback(
+        (target: MockupTarget) => {
+            void prd.mockups_(modelCode, [target], buildChosenStylePayload());
+        },
+        [prd, modelCode, buildChosenStylePayload],
+    );
+
     // Page targets derived from the PRD + the categories actually present, so
     // the mockup panel only offers relevant page-type filters.
     const mockupTargets = useMemo(
@@ -204,9 +212,11 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                       design: prd.design,
                       projectTitle: prd.projectTitle,
                       status: prd.status === 'idle' ? 'refining' : prd.status,
+                      // Persist generated mockups so a reload doesn't lose them.
+                      mockups: prd.mockups.length > 0 ? prd.mockups : undefined,
                   }
                 : null,
-        [prd.messages, prd.outputs, prd.design, prd.projectTitle, prd.status],
+        [prd.messages, prd.outputs, prd.design, prd.projectTitle, prd.status, prd.mockups],
     );
 
     useSessionAutoSave<PrdSessionPayload>({
@@ -239,6 +249,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                 design: (p.design ?? null) as PrdDesign | null,
                 projectTitle: p.projectTitle,
                 status: (p.status ?? 'refining') as PrdSessionStatus,
+                mockups: (p.mockups ?? []) as PrdMockupPage[],
             });
             setSessionId(stored.id);
             setActiveSessionId(stored.id);
@@ -396,6 +407,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     design: (session.design ?? null) as PrdDesign | null,
                     projectTitle: session.metadata?.project_title ?? '',
                     status: (session.metadata?.status ?? 'generated') as PrdSessionStatus,
+                    mockups: ((session as { mockups?: PrdMockupPage[] }).mockups ?? []),
                 });
                 const id = newSessionId('prd-builder');
                 setSessionId(id);
@@ -494,6 +506,8 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     mockupCategoryFilter={mockupCategoryFilter}
                     onMockupCategoryFilterChange={setMockupCategoryFilter}
                     mockupProgress={prd.mockupProgress}
+                    onCancelMockups={prd.cancelMockups}
+                    onRegenerateMockupPage={runRegenerateMockupPage}
                 />
             )}
 

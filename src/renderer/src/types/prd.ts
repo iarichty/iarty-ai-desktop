@@ -85,6 +85,12 @@ export interface PrdMockupPage {
     description: string;
     /** Full standalone HTML document. */
     html: string;
+    /** Whether generation for this page succeeded or ultimately failed. */
+    status?: 'ok' | 'failed';
+    /** Error message when status is 'failed'. */
+    error?: string;
+    /** Auto-detected page category, retained for targeted regeneration. */
+    category?: 'landing' | 'dashboard' | 'main' | 'other';
 }
 
 /**

@@ -29,6 +29,17 @@ import type { MockupTarget } from '@/lib/mockupScreens';
  */
 const MOCKUP_CREDITS_PER_PAGE = 12;
 
+/** Builds a placeholder page marked as failed, so the UI can offer a retry. */
+const buildFailed = (target: MockupTarget, error: string): PrdMockupPage => ({
+    id: target.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    name: target.name,
+    description: '',
+    html: '',
+    status: 'failed',
+    error,
+    category: target.category,
+});
+
 export type PrdStage = 'refine' | 'generate' | 'design' | 'suggest';
 
 interface UsePrdBuilder {
@@ -50,6 +61,8 @@ interface UsePrdBuilder {
     generate: (model: string) => Promise<void>;
     design_: (model: string, chosenStyle?: Record<string, unknown> | null) => Promise<void>;
     mockups_: (model: string, targets: MockupTarget[], chosenStyle?: Record<string, unknown> | null) => Promise<void>;
+    /** Cancels an in-flight mockup run, keeping pages already generated. */
+    cancelMockups: () => void;
     suggest: (model: string, opts?: { silent?: boolean }) => Promise<void>;
     editMessage: (id: string, newContent: string, model: string) => Promise<void>;
     regenerateFrom: (id: string, model: string) => Promise<void>;
@@ -60,6 +73,7 @@ interface UsePrdBuilder {
         design: PrdDesign | null;
         projectTitle: string;
         status: PrdSessionStatus;
+        mockups?: PrdMockupPage[];
     }) => void;
 }
 
@@ -90,11 +104,18 @@ export function usePrdBuilder(): UsePrdBuilder {
 
     const activeRequest = useRef<string | null>(null);
     const suggestReqId = useRef(0);
+    // Set while a mockup run is cancelled so the loop unwinds cleanly.
+    const cancelledRef = useRef(false);
     const messagesRef = useRef<PrdMessage[]>([]);
+    const projectTitleRef = useRef('');
 
     useEffect(() => {
         messagesRef.current = messages;
     }, [messages]);
+
+    useEffect(() => {
+        projectTitleRef.current = projectTitle;
+    }, [projectTitle]);
 
     /** Streams a feature request, invoking `onDone` with the full text. */
     const runStream = useCallback(
@@ -296,10 +317,10 @@ export function usePrdBuilder(): UsePrdBuilder {
             if (isDesigning || isRefining || isGenerating) return;
             setIsDesigning(true);
             try {
-                const history: ChatMessage[] = messagesRef.current.map((m) => ({
-                    role: m.role,
-                    content: m.content,
-                }));
+            const history: ChatMessage[] = messagesRef.current.map((m) => ({
+                role: m.role,
+                content: m.content,
+            }));
                 await runStream(
                     '/ai/prd-builder/design',
                     chosenStyle ? { chosenStyle: JSON.stringify(chosenStyle) } : {},
@@ -354,6 +375,13 @@ export function usePrdBuilder(): UsePrdBuilder {
             // One AI call per page so each screen is rendered in full detail,
             // run sequentially with live progress + credit reporting.
             setIsGeneratingMockups(true);
+            // A single-page regenerate replaces just that page; a full run resets.
+            if (targets.length === 1) {
+                const keep = targets[0].name;
+                setMockups((prev) => prev.filter((p) => p.name !== keep));
+            } else {
+                setMockups([]);
+            }
             setMockupProgress({
                 total: targets.length,
                 completed: 0,
@@ -364,25 +392,29 @@ export function usePrdBuilder(): UsePrdBuilder {
             const collected: PrdMockupPage[] = [];
             let completed = 0;
 
-            try {
-                for (const target of targets) {
-                    setMockupProgress({
-                        total: targets.length,
-                        completed,
-                        current: target.name,
-                        creditsPerPage: MOCKUP_CREDITS_PER_PAGE,
-                    });
+            // Shared design brief: keep brand, top-level nav and palette
+            // identical across every page of this run.
+            const sharedBrief = JSON.stringify({
+                brand: projectTitleRef.current || 'the product',
+                nav: targets.filter((tt) => tt.category !== 'other').slice(0, 5).map((tt) => tt.name),
+                language: 'match the PRD conversation',
+            });
+
+            // Fetch one page with retries for transient failures. Returns the
+            // page, or a failed placeholder after all attempts are exhausted.
+            const fetchPage = async (target: MockupTarget): Promise<PrdMockupPage> => {
+                const MAX_ATTEMPTS = 3;
+                for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+                    if (cancelledRef.current) return buildFailed(target, t('prd.mockupCancelled'));
 
                     const fields: Record<string, string> = {
                         page: target.name,
                         category: target.category,
+                        sharedBrief,
                     };
                     if (chosenStyle) fields.chosenStyle = JSON.stringify(chosenStyle);
 
                     let pageDone: PrdMockupPage | null = null;
-                    // runStream resolves null on a terminal error frame (and
-                    // already notifies the user); stop the whole run rather than
-                    // silently continuing to the next page.
                     const result = await runStream(
                         '/ai/prd-builder/mockup',
                         fields,
@@ -391,31 +423,71 @@ export function usePrdBuilder(): UsePrdBuilder {
                         (full) => {
                             const parsed = parseMockupOutput(full);
                             if (parsed && parsed.length > 0) {
-                                pageDone = parsed[0];
-                                setMockups([...collected, pageDone]);
+                                pageDone = { ...parsed[0], category: target.category };
                             }
                         },
                         false,
                     );
 
-                    if (result === null) {
-                        break;
-                    }
+                    if (cancelledRef.current) return buildFailed(target, t('prd.mockupCancelled'));
 
                     if (pageDone) {
-                        collected.push(pageDone);
-                        completed += 1;
-                        setMockups([...collected]);
-                        setMockupProgress({
-                            total: targets.length,
-                            completed,
-                            current: null,
-                            creditsPerPage: MOCKUP_CREDITS_PER_PAGE,
-                        });
+                        return { ...(pageDone as PrdMockupPage), status: 'ok' };
+                    }
+
+                    // Transient failure — back off and retry.
+                    if (result === null && attempt < MAX_ATTEMPTS - 1) {
+                        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
                     }
                 }
+                return buildFailed(target, t('prd.mockupFail'));
+            };
 
-                if (collected.length > 0) {
+            try {
+                for (const target of targets) {
+                    if (cancelledRef.current) break;
+
+                    setMockupProgress({
+                        total: targets.length,
+                        completed,
+                        current: target.name,
+                        creditsPerPage: MOCKUP_CREDITS_PER_PAGE,
+                    });
+
+                    const page = await fetchPage(target);
+
+                    if (cancelledRef.current && page.status === 'failed') break;
+
+                    collected.push(page);
+                    completed += 1;
+                    setMockups([...collected]);
+                    setMockupProgress({
+                        total: targets.length,
+                        completed,
+                        current: null,
+                        creditsPerPage: MOCKUP_CREDITS_PER_PAGE,
+                    });
+                }
+
+                const okCount = collected.filter((p) => p.status !== 'failed').length;
+                const failCount = collected.length - okCount;
+
+                if (cancelledRef.current) {
+                    addNotification(
+                        okCount > 0
+                            ? t('prd.mockupStopped').replace('{count}', String(okCount))
+                            : t('prd.mockupCancelled'),
+                        'info',
+                    );
+                } else if (failCount > 0) {
+                    addNotification(
+                        t('prd.mockupPartial')
+                            .replace('{ok}', String(okCount))
+                            .replace('{total}', String(collected.length))
+                            .replace('{fail}', String(failCount)),
+                        'warning',
+                    );
+                } else if (okCount > 0) {
                     addNotification(t('prd.mockupReady'), 'success');
                 } else {
                     addNotification(t('prd.mockupFail'), 'error');
@@ -429,6 +501,12 @@ export function usePrdBuilder(): UsePrdBuilder {
         },
         [isGeneratingMockups, isRefining, isGenerating, runStream, addNotification, t],
     );
+
+    /** Cancels an in-flight mockup run, keeping pages already generated. */
+    const cancelMockups = useCallback(() => {
+        cancelledRef.current = true;
+        if (activeRequest.current) void bridge.features.cancel(activeRequest.current);
+    }, []);
 
     const suggest = useCallback(
         async (model: string, opts?: { silent?: boolean }) => {
@@ -544,12 +622,14 @@ export function usePrdBuilder(): UsePrdBuilder {
             design: PrdDesign | null;
             projectTitle: string;
             status: PrdSessionStatus;
+            mockups?: PrdMockupPage[];
         }) => {
             setMessages(session.messages);
             setOutputs(session.outputs);
             setDesign(session.design);
             setProjectTitle(session.projectTitle);
             setStatus(session.status);
+            setMockups(session.mockups ?? []);
         },
         [],
     );
@@ -572,6 +652,7 @@ export function usePrdBuilder(): UsePrdBuilder {
         generate,
         design_,
         mockups_,
+        cancelMockups,
         suggest,
         editMessage,
         regenerateFrom,
