@@ -10,12 +10,13 @@ import {
     TbCopy,
     TbCheck,
     TbDownload,
+    TbExternalLink,
     TbArrowLeft,
 } from 'react-icons/tb';
 import type { IconType } from 'react-icons';
 import type { PrdDesign, PrdOutputs, PrdOutputTab, ParsedErDiagram, ParsedFlow } from '@/types/prd';
 import { parseErDiagram, parseFlowchart } from '@/lib/prdHelpers';
-import { unsplashUrl } from '@/data/designStyles';
+import { designPreviewUrl } from '@/data/designStyles';
 import Loader from './Loader';
 import FormattedContent from './FormattedContent';
 import { DatabaseTableView, PageFlowView } from './ArtifactViews';
@@ -338,29 +339,22 @@ function DesignPanel({ design }: { design: PrdDesign }): JSX.Element {
                             <TbPalette className="h-3.5 w-3.5 text-accent" />
                             {t('prd.chosenStyle')} · {design.chosen_style.name}
                         </span>
-                        <span className="text-[10px] font-mono text-text">
-                            {design.chosen_style.mood}
-                        </span>
+                        <button
+                            onClick={() =>
+                                window.open(designPreviewUrl(design.chosen_style!.id), '_blank')
+                            }
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-text hover:text-text-h"
+                        >
+                            <TbExternalLink className="h-3 w-3" />
+                            {t('prd.openFullPage')}
+                        </button>
                     </div>
-                    <div className="grid h-32 grid-cols-3 sm:h-40">
-                        {design.chosen_style.unsplash.slice(0, 3).map((id) => (
-                            <div key={id} className="relative overflow-hidden">
-                                <img
-                                    src={unsplashUrl(id, 500)}
-                                    alt=""
-                                    loading="lazy"
-                                    className="absolute inset-0 h-full w-full object-cover"
-                                />
-                                <span
-                                    className="absolute inset-0"
-                                    style={{
-                                        background: `linear-gradient(160deg, transparent 50%, ${design.chosen_style!.palette.accent}b3)`,
-                                        mixBlendMode: 'multiply',
-                                    }}
-                                />
-                            </div>
-                        ))}
-                    </div>
+                    <iframe
+                        key={design.chosen_style.id}
+                        title={`${design.chosen_style.name} landing page preview`}
+                        src={designPreviewUrl(design.chosen_style.id)}
+                        className="h-72 w-full border-b border-border bg-white sm:h-96"
+                    />
                     <div className="p-4">
                         <p className="mb-3 text-xs leading-relaxed text-text">
                             {design.chosen_style.tagline}

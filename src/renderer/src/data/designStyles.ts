@@ -71,6 +71,14 @@ export const UNSPLASH_SUFFIX = '?w=1000&q=70&auto=format&fit=crop';
 export const unsplashUrl = (id: string, width = 1000): string =>
     `${UNSPLASH_PREFIX}${id}?w=${width}&q=70&auto=format&fit=crop`;
 
+/**
+ * URL of the full example landing page for a style, shipped in
+ * `renderer/public/design-previews/<id>.html`. Uses a *relative* path (no
+ * leading slash) so it resolves under Electron's `file://` origin in
+ * production as well as the Vite dev server during development.
+ */
+export const designPreviewUrl = (id: string): string => `design-previews/${id}.html`;
+
 export const DESIGN_STYLES: DesignStyle[] = [
     {
         id: 'quiet-luxury-fashion',

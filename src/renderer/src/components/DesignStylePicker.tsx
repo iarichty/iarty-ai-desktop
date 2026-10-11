@@ -8,9 +8,10 @@ import {
     TbLayoutGrid,
     TbSparkles,
     TbArrowLeft,
+    TbExternalLink,
 } from 'react-icons/tb';
 import Modal from './Modal';
-import { DESIGN_STYLES, unsplashUrl, type DesignStyle } from '@/data/designStyles';
+import { DESIGN_STYLES, unsplashUrl, designPreviewUrl, type DesignStyle } from '@/data/designStyles';
 import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
@@ -269,24 +270,32 @@ function StyleDetail({
             transition={{ duration: 0.3 }}
             className="space-y-5"
         >
-            <div className="grid h-40 grid-cols-3 gap-2 overflow-hidden rounded-2xl">
-                {style.unsplash.slice(0, 3).map((id) => (
-                    <div key={id} className="relative overflow-hidden">
-                        <img
-                            src={unsplashUrl(id, 500)}
-                            alt=""
-                            loading="lazy"
-                            className="absolute inset-0 h-full w-full object-cover"
-                        />
-                        <span
-                            className="absolute inset-0"
-                            style={{
-                                background: `linear-gradient(160deg, transparent 50%, ${style.palette.accent}b3)`,
-                                mixBlendMode: 'multiply',
-                            }}
-                        />
+            <div className="overflow-hidden rounded-2xl border border-border bg-[color:var(--surface)]">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex shrink-0 gap-1">
+                            <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                        </span>
+                        <span className="truncate text-[10px] font-mono text-text">
+                            {t('prd.previewExample')}
+                        </span>
                     </div>
-                ))}
+                    <button
+                        onClick={() => window.open(designPreviewUrl(style.id), '_blank')}
+                        className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-text hover:text-text-h"
+                    >
+                        <TbExternalLink className="h-3 w-3" />
+                        {t('prd.openFullPage')}
+                    </button>
+                </div>
+                <iframe
+                    key={style.id}
+                    title={`${style.name} landing page preview`}
+                    src={designPreviewUrl(style.id)}
+                    className="h-[420px] w-full bg-white"
+                />
             </div>
 
             <p className="text-sm leading-relaxed text-text">{style.description}</p>

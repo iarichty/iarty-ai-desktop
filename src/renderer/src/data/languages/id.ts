@@ -339,6 +339,8 @@ export const id = {
         layout: 'Tata letak & struktur',
         motion: 'Gerak & detail',
         chosenStyle: 'Gaya pilihanmu',
+        previewExample: 'Contoh landing page lengkap',
+        openFullPage: 'Buka halaman penuh',
         open: 'Buka PRD',
         import: 'Impor',
         export: 'Ekspor',

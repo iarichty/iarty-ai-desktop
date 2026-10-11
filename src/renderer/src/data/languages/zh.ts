@@ -327,6 +327,8 @@ export const zh = {
         layout: '布局与结构',
         motion: '动效与细节',
         chosenStyle: '你选择的风格',
+        previewExample: '完整落地页示例',
+        openFullPage: '打开完整页面',
         open: '打开 PRD',
         import: '导入',
         export: '导出',

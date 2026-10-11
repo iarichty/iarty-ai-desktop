@@ -344,6 +344,8 @@ export const en = {
         layout: 'Layout & structure',
         motion: 'Motion & detail',
         chosenStyle: 'Your chosen style',
+        previewExample: 'Full landing page example',
+        openFullPage: 'Open full page',
         open: 'Open PRD',
         import: 'Import',
         export: 'Export',
