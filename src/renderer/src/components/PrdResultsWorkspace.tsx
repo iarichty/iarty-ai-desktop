@@ -404,7 +404,7 @@ export default function PrdResultsWorkspace({
                                     <PageMockupsPanel
                                         pages={mockups}
                                         screenNames={screenNames}
-                                        targets={filteredTargets}
+                                        targets={resolvedTargets}
                                         availableCategories={resolvedCategories}
                                         categoryFilter={mockupCategoryFilter}
                                         onCategoryFilterChange={onMockupCategoryFilterChange}

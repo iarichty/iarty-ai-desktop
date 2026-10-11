@@ -374,13 +374,16 @@ export function usePrdBuilder(): UsePrdBuilder {
                     });
 
                     const fields: Record<string, string> = {
-                        page: JSON.stringify(target.name),
+                        page: target.name,
                         category: target.category,
                     };
                     if (chosenStyle) fields.chosenStyle = JSON.stringify(chosenStyle);
 
                     let pageDone: PrdMockupPage | null = null;
-                    await runStream(
+                    // runStream resolves null on a terminal error frame (and
+                    // already notifies the user); stop the whole run rather than
+                    // silently continuing to the next page.
+                    const result = await runStream(
                         '/ai/prd-builder/mockup',
                         fields,
                         model,
@@ -394,6 +397,10 @@ export function usePrdBuilder(): UsePrdBuilder {
                         },
                         false,
                     );
+
+                    if (result === null) {
+                        break;
+                    }
 
                     if (pageDone) {
                         collected.push(pageDone);

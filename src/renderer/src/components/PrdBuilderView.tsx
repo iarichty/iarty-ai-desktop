@@ -132,6 +132,13 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
         void prd.design_(modelCode, buildChosenStylePayload());
     }, [prd, modelCode, buildChosenStylePayload]);
 
+    // Regenerating the PRD starts a new artifact set, so clear any page-type
+    // filter carried over from the previous project.
+    const runGenerate = useCallback(() => {
+        setMockupCategoryFilter([]);
+        void prd.generate(modelCode);
+    }, [prd, modelCode]);
+
     const runGenerateMockups = useCallback(() => {
         const flowLabels = prd.outputs.page_flow
             ? parseFlowchart(prd.outputs.page_flow).steps.map((s) => s.label)
@@ -235,6 +242,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
             });
             setSessionId(stored.id);
             setActiveSessionId(stored.id);
+            setMockupCategoryFilter([]);
             addNotification(t('prd.restored'), 'success');
         },
         [sessions, prd, addNotification, t],
@@ -246,6 +254,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
         setShowResults(false);
         setSessionId(null);
         setActiveSessionId(null);
+        setMockupCategoryFilter([]);
     }, [prd]);
 
     /* ── Speech ─────────────────────────────────────────────────────────── */
@@ -391,6 +400,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                 const id = newSessionId('prd-builder');
                 setSessionId(id);
                 setActiveSessionId(id);
+                setMockupCategoryFilter([]);
                 addNotification(t('prd.importOk'), 'success');
             } catch (err) {
                 addNotification(err instanceof Error ? err.message : t('prd.importFail'), 'error');
@@ -469,7 +479,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     activeTab={panelTab}
                     onTabChange={setPanelTab}
                     onAddNotification={addNotification}
-                    onRegenerate={() => void prd.generate(modelCode)}
+                    onRegenerate={runGenerate}
                     isRegenerating={prd.isGenerating}
                     onGenerateDesign={canGenerateDesign ? runGenerateDesign : undefined}
                     isDesigning={prd.isDesigning}
@@ -509,7 +519,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                 {/* Toolbar */}
                 <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-2.5">
                     {canGenerate && (
-                        <Button size="sm" onClick={() => void prd.generate(modelCode)}>
+                        <Button size="sm" onClick={runGenerate}>
                             <TbWand className="h-4 w-4" />
                             {t('prd.generate')}
                         </Button>
@@ -676,7 +686,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                                                 index === prd.messages.length - 1 &&
                                                 message.content.includes('[READY_TO_GENERATE]') &&
                                                 canGenerate
-                                                    ? () => void prd.generate(modelCode)
+                                                    ? runGenerate
                                                     : undefined
                                             }
                                             onOpenResults={
