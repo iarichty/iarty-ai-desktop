@@ -6,6 +6,7 @@ import type { ChatMessage, StreamEvent } from '@shared/types';
 import type {
     PrdDesign,
     PrdMessage,
+    PrdMockupPage,
     PrdOutputs,
     PrdSessionStatus,
     PrdSuggestion,
@@ -13,6 +14,7 @@ import type {
 import {
     isPrdReadyToGenerate,
     parseDesignOutput,
+    parseMockupOutput,
     parsePrdOutput,
     parseSuggestionOutput,
     toIsoNow,
@@ -26,15 +28,18 @@ interface UsePrdBuilder {
     status: PrdSessionStatus | 'idle';
     outputs: PrdOutputs;
     design: PrdDesign | null;
+    mockups: PrdMockupPage[];
     projectTitle: string;
     suggestions: PrdSuggestion[];
     isRefining: boolean;
     isGenerating: boolean;
     isDesigning: boolean;
+    isGeneratingMockups: boolean;
     isSuggesting: boolean;
     refine: (prompt: string, model: string) => Promise<void>;
     generate: (model: string) => Promise<void>;
     design_: (model: string, chosenStyle?: Record<string, unknown> | null) => Promise<void>;
+    mockups_: (model: string, pages: string[], chosenStyle?: Record<string, unknown> | null) => Promise<void>;
     suggest: (model: string, opts?: { silent?: boolean }) => Promise<void>;
     editMessage: (id: string, newContent: string, model: string) => Promise<void>;
     regenerateFrom: (id: string, model: string) => Promise<void>;
@@ -63,11 +68,13 @@ export function usePrdBuilder(): UsePrdBuilder {
     const [status, setStatus] = useState<PrdSessionStatus | 'idle'>('idle');
     const [outputs, setOutputs] = useState<PrdOutputs>(EMPTY_OUTPUTS);
     const [design, setDesign] = useState<PrdDesign | null>(null);
+    const [mockups, setMockups] = useState<PrdMockupPage[]>([]);
     const [projectTitle, setProjectTitle] = useState('');
     const [suggestions, setSuggestions] = useState<PrdSuggestion[]>([]);
     const [isRefining, setIsRefining] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isDesigning, setIsDesigning] = useState(false);
+    const [isGeneratingMockups, setIsGeneratingMockups] = useState(false);
     const [isSuggesting, setIsSuggesting] = useState(false);
 
     const activeRequest = useRef<string | null>(null);
@@ -316,6 +323,46 @@ export function usePrdBuilder(): UsePrdBuilder {
         [isDesigning, isRefining, isGenerating, runStream, addNotification, t],
     );
 
+    const mockups_ = useCallback(
+        async (
+            model: string,
+            pages: string[],
+            chosenStyle?: Record<string, unknown> | null,
+        ) => {
+            if (isGeneratingMockups || isRefining || isGenerating) return;
+            if (!pages || pages.length === 0) {
+                addNotification(t('prd.mockupNoScreens'), 'info');
+                return;
+            }
+            setIsGeneratingMockups(true);
+            try {
+                const history: ChatMessage[] = messagesRef.current.map((m) => ({
+                    role: m.role,
+                    content: m.content,
+                }));
+                const fields: Record<string, string> = { pages: JSON.stringify(pages) };
+                if (chosenStyle) fields.chosenStyle = JSON.stringify(chosenStyle);
+                await runStream(
+                    '/ai/prd-builder/mockup',
+                    fields,
+                    model,
+                    history,
+                    (full) => {
+                        const parsed = parseMockupOutput(full);
+                        if (parsed) setMockups(parsed);
+                    },
+                    false,
+                );
+                addNotification(t('prd.mockupReady'), 'success');
+            } catch {
+                addNotification(t('prd.mockupFail'), 'error');
+            } finally {
+                setIsGeneratingMockups(false);
+            }
+        },
+        [isGeneratingMockups, isRefining, isGenerating, runStream, addNotification, t],
+    );
+
     const suggest = useCallback(
         async (model: string, opts?: { silent?: boolean }) => {
             // The backend needs at least one non-empty assistant turn to base the
@@ -417,6 +464,7 @@ export function usePrdBuilder(): UsePrdBuilder {
         setStatus('idle');
         setOutputs(EMPTY_OUTPUTS);
         setDesign(null);
+        setMockups([]);
         setProjectTitle('');
         setSuggestions([]);
     }, []);
@@ -443,15 +491,18 @@ export function usePrdBuilder(): UsePrdBuilder {
         status,
         outputs,
         design,
+        mockups,
         projectTitle,
         suggestions,
         isRefining,
         isGenerating,
         isDesigning,
+        isGeneratingMockups,
         isSuggesting,
         refine,
         generate,
         design_,
+        mockups_,
         suggest,
         editMessage,
         regenerateFrom,

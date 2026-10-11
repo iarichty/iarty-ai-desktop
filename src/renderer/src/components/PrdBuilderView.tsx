@@ -39,7 +39,8 @@ import { SessionList } from './SessionList';
 import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign } from '@/types/prd';
-import { getFileIcon, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
+import { getFileIcon, parseFlowchart, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
+import { deriveScreenNames } from '@/lib/mockupScreens';
 import { getDesignStyleById, type DesignStyle } from '@/data/designStyles';
 import { useLanguage } from '@/context/useLanguage';
 
@@ -99,27 +100,47 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     const canGenerateDesign =
         !prd.design && !prd.isDesigning && !prd.isRefining && !prd.isGenerating && hasOutputs;
 
-    /** Builds the payload for the currently selected curated style (or null). */
-    const buildChosenStylePayload = useCallback(() => {
-        const style = selectedStyleId ? getDesignStyleById(selectedStyleId) : undefined;
-        if (!style) return null;
-        return {
-            id: style.id,
-            name: style.name,
-            tagline: style.tagline,
-            mood: style.mood,
-            color_palette: style.color_palette,
-            palette: style.palette,
-            typography: style.typography,
-            layout: style.layout,
-            motion: style.motion,
-            implementation_notes: style.implementation_notes,
-            unsplash: style.unsplash,
-        };
-    }, [selectedStyleId]);
+    /** Builds the payload for a curated style (defaults to the selected one). */
+    const buildChosenStylePayload = useCallback(
+        (styleArg?: DesignStyle | null) => {
+            const style =
+                styleArg === undefined
+                    ? selectedStyleId
+                        ? getDesignStyleById(selectedStyleId)
+                        : undefined
+                    : styleArg || undefined;
+            if (!style) return null;
+            return {
+                id: style.id,
+                name: style.name,
+                tagline: style.tagline,
+                mood: style.mood,
+                color_palette: style.color_palette,
+                palette: style.palette,
+                typography: style.typography,
+                layout: style.layout,
+                motion: style.motion,
+                implementation_notes: style.implementation_notes,
+                unsplash: style.unsplash,
+            };
+        },
+        [selectedStyleId],
+    );
 
     const runGenerateDesign = useCallback(() => {
         void prd.design_(modelCode, buildChosenStylePayload());
+    }, [prd, modelCode, buildChosenStylePayload]);
+
+    const runGenerateMockups = useCallback(() => {
+        const flowLabels = prd.outputs.page_flow
+            ? parseFlowchart(prd.outputs.page_flow).steps.map((s) => s.label)
+            : [];
+        const screens = deriveScreenNames(
+            prd.outputs.prd_markdown,
+            prd.outputs.page_flow,
+            flowLabels,
+        );
+        void prd.mockups_(modelCode, screens, buildChosenStylePayload());
     }, [prd, modelCode, buildChosenStylePayload]);
 
     const handleSelectDesignStyle = useCallback(
@@ -129,8 +150,12 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                 style ? t('prd.styleSet').replace('{name}', style.name) : t('prd.styleCleared'),
                 'success',
             );
+            // Apply immediately: re-run the AI design step with this exact style.
+            if (style && hasOutputs && !prd.isDesigning && !prd.isRefining && !prd.isGenerating) {
+                void prd.design_(modelCode, buildChosenStylePayload(style));
+            }
         },
-        [addNotification, t],
+        [addNotification, t, hasOutputs, prd, modelCode, buildChosenStylePayload],
     );
 
     /* ── Local session auto-save ────────────────────────────────────────── */
@@ -425,6 +450,11 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     onGenerateDesign={canGenerateDesign ? runGenerateDesign : undefined}
                     isDesigning={prd.isDesigning}
                     onBackToChat={() => setShowResults(false)}
+                    onOpenStylePicker={() => setIsStylePickerOpen(true)}
+                    appliedStyleId={selectedStyleId}
+                    mockups={prd.mockups}
+                    onGenerateMockups={runGenerateMockups}
+                    isGeneratingMockups={prd.isGeneratingMockups}
                 />
             )}
 

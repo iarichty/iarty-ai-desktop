@@ -76,7 +76,16 @@ export interface PrdSuggestion {
     text: string;
 }
 
-export type PrdOutputTab = 'prd' | 'database' | 'flow' | 'design';
+export type PrdOutputTab = 'prd' | 'database' | 'flow' | 'design' | 'mockup';
+
+/** A single generated per-page UI mockup (self-contained HTML document). */
+export interface PrdMockupPage {
+    id: string;
+    name: string;
+    description: string;
+    /** Full standalone HTML document. */
+    html: string;
+}
 
 export interface DbColumn {
     name: string;

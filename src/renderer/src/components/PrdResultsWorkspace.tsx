@@ -12,13 +12,23 @@ import {
     TbDownload,
     TbExternalLink,
     TbArrowLeft,
+    TbDeviceDesktop,
 } from 'react-icons/tb';
 import type { IconType } from 'react-icons';
-import type { PrdDesign, PrdOutputs, PrdOutputTab, ParsedErDiagram, ParsedFlow } from '@/types/prd';
+import type {
+    PrdDesign,
+    PrdOutputs,
+    PrdOutputTab,
+    PrdMockupPage,
+    ParsedErDiagram,
+    ParsedFlow,
+} from '@/types/prd';
 import { parseErDiagram, parseFlowchart } from '@/lib/prdHelpers';
 import { designPreviewUrl } from '@/data/designStyles';
+import { deriveScreenNames } from '@/lib/mockupScreens';
 import Loader from './Loader';
 import FormattedContent from './FormattedContent';
+import PageMockupsPanel from './PageMockupsPanel';
 import { DatabaseTableView, PageFlowView } from './ArtifactViews';
 import { useLanguage } from '@/context/useLanguage';
 
@@ -34,6 +44,14 @@ interface Props {
     onGenerateDesign?: () => void;
     isDesigning?: boolean;
     onBackToChat: () => void;
+    /** Open the design-style picker to (re)apply a curated style. */
+    onOpenStylePicker?: () => void;
+    /** Currently applied curated style id (empty = none). */
+    appliedStyleId?: string;
+    /** Per-page UI mockups generated from the PRD / page flow. */
+    mockups?: PrdMockupPage[];
+    onGenerateMockups?: () => void;
+    isGeneratingMockups?: boolean;
 }
 
 const TABS: { key: PrdOutputTab; labelKey: string; icon: IconType }[] = [
@@ -41,12 +59,13 @@ const TABS: { key: PrdOutputTab; labelKey: string; icon: IconType }[] = [
     { key: 'database', labelKey: 'prdWorkspace.tabSchema', icon: TbDatabase },
     { key: 'flow', labelKey: 'prdWorkspace.tabFlow', icon: TbRoute },
     { key: 'design', labelKey: 'prdWorkspace.tabDesign', icon: TbPalette },
+    { key: 'mockup', labelKey: 'prdWorkspace.tabMockups', icon: TbDeviceDesktop },
 ];
 
 /**
  * Full-screen PRD results workspace, mirroring the web app's
  * `PrdResultsWorkspace`: a top action bar + left tab rail with PRD document,
- * database schema, page flow and design-recommendation views.
+ * database schema, page flow, design-recommendation and per-page UI mockup views.
  */
 export default function PrdResultsWorkspace({
     outputs,
@@ -60,6 +79,11 @@ export default function PrdResultsWorkspace({
     onGenerateDesign,
     isDesigning = false,
     onBackToChat,
+    onOpenStylePicker,
+    appliedStyleId = '',
+    mockups = [],
+    onGenerateMockups,
+    isGeneratingMockups = false,
 }: Props): JSX.Element {
     const { t } = useLanguage();
     const [copied, setCopied] = useState(false);
@@ -117,6 +141,11 @@ export default function PrdResultsWorkspace({
     const parsedFlow: ParsedFlow | null = outputs.page_flow
         ? parseFlowchart(outputs.page_flow)
         : null;
+    const screenNames = deriveScreenNames(
+        outputs.prd_markdown,
+        outputs.page_flow,
+        parsedFlow ? parsedFlow.steps.map((s) => s.label) : [],
+    );
 
     return (
         <div className="fixed inset-0 z-[60] flex flex-col bg-slate-50 text-slate-900 dark:bg-neutral-950 dark:text-white">
@@ -299,24 +328,58 @@ export default function PrdResultsWorkspace({
                                             </span>
                                         </div>
                                     ) : design && design.design_styles.length > 0 ? (
-                                        <DesignPanel design={design} />
+                                        <DesignPanel
+                                            design={design}
+                                            onApplyStyle={onOpenStylePicker}
+                                            appliedStyleId={appliedStyleId}
+                                        />
                                     ) : (
                                         <div className="flex flex-col items-center justify-center gap-3 py-12">
                                             <TbPalette className="h-8 w-8 text-text/40" />
                                             <p className="text-center text-sm text-text">
                                                 {t('prdWorkspace.noDesign')}
                                             </p>
-                                            {onGenerateDesign && (
-                                                <button
-                                                    onClick={onGenerateDesign}
-                                                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:opacity-90"
-                                                >
-                                                    <TbPalette className="h-4 w-4" />
-                                                    {t('prdWorkspace.generateDesignRecs')}
-                                                </button>
-                                            )}
+                                            <div className="flex flex-wrap items-center justify-center gap-2">
+                                                {onOpenStylePicker && (
+                                                    <button
+                                                        onClick={onOpenStylePicker}
+                                                        className="flex cursor-pointer items-center gap-2 rounded-xl border border-border px-4 py-2 text-xs font-bold text-text-h transition-all hover:bg-surface"
+                                                    >
+                                                        <TbPalette className="h-4 w-4" />
+                                                        {t('prd.applyStyle')}
+                                                    </button>
+                                                )}
+                                                {onGenerateDesign && (
+                                                    <button
+                                                        onClick={onGenerateDesign}
+                                                        className="flex cursor-pointer items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:opacity-90"
+                                                    >
+                                                        <TbPalette className="h-4 w-4" />
+                                                        {t('prdWorkspace.generateDesignRecs')}
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
+                                </motion.div>
+                            )}
+                            {activeTab === 'mockup' && (
+                                <motion.div
+                                    key="mockup"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.25 }}
+                                >
+                                    <PageMockupsPanel
+                                        pages={mockups}
+                                        screenNames={screenNames}
+                                        styleName={design?.chosen_style?.name}
+                                        isGenerating={isGeneratingMockups}
+                                        onGenerate={() => onGenerateMockups?.()}
+                                        onNotify={onAddNotification}
+                                        projectTitle={projectTitle}
+                                    />
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -328,10 +391,35 @@ export default function PrdResultsWorkspace({
 }
 
 /* ── Design panel ────────────────────────────────────────────────────────── */
-function DesignPanel({ design }: { design: PrdDesign }): JSX.Element {
+function DesignPanel({
+    design,
+    onApplyStyle,
+    appliedStyleId = '',
+}: {
+    design: PrdDesign;
+    onApplyStyle?: () => void;
+    appliedStyleId?: string;
+}): JSX.Element {
     const { t } = useLanguage();
     return (
         <div className="space-y-5">
+            {onApplyStyle && (
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-[color:var(--surface)] px-4 py-3">
+                    <div className="min-w-0">
+                        <p className="text-xs font-bold text-text-h">
+                            {appliedStyleId ? t('prd.changeStyle') : t('prd.applyStyle')}
+                        </p>
+                        <p className="text-[11px] text-text">{t('prd.applyStyleHint')}</p>
+                    </div>
+                    <button
+                        onClick={onApplyStyle}
+                        className="flex shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:opacity-90"
+                    >
+                        <TbPalette className="h-4 w-4" />
+                        {appliedStyleId ? t('prd.changeStyle') : t('prd.applyStyle')}
+                    </button>
+                </div>
+            )}
             {design.chosen_style && (
                 <div className="overflow-hidden rounded-2xl border border-border">
                     <div className="flex items-center justify-between gap-3 bg-accent/10 px-4 py-2.5">

@@ -2,6 +2,7 @@ import type {
     PrdDesign,
     PrdOutputs,
     PrdSuggestion,
+    PrdMockupPage,
     ParsedErDiagram,
     DbTable,
     DbRelationship,
@@ -171,6 +172,60 @@ export const parseDesignOutput = (raw: string): PrdDesign | null => {
                 : styles[0].id,
         design_summary: typeof parsed.design_summary === 'string' ? parsed.design_summary : '',
     };
+};
+
+/**
+ * Robustly parses the per-page mockup output. Tolerates a ```prd-mockup fence,
+ * other fences, or raw JSON. Returns null until at least one page with HTML is
+ * present so streaming partials don't render empty iframes.
+ */
+export const parseMockupOutput = (raw: string): PrdMockupPage[] | null => {
+    if (!raw) return null;
+
+    const candidates: string[] = [];
+    const fenced = raw.match(/```prd-mockup\s*([\s\S]*?)(?:```|$)/);
+    if (fenced) candidates.push(fenced[1].trim());
+    const anyFence = raw.match(/```[a-zA-Z-]*\s*([\s\S]*?)(?:```|$)/);
+    if (anyFence) candidates.push(anyFence[1].trim());
+    const extracted = extractJsonObject(raw);
+    if (extracted) candidates.push(extracted);
+
+    let parsed: Record<string, unknown> | null = null;
+    for (const candidate of candidates) {
+        for (const attempt of [candidate, extractJsonObject(candidate) ?? '']) {
+            if (!attempt) continue;
+            try {
+                const obj = JSON.parse(attempt) as Record<string, unknown>;
+                if (obj && typeof obj === 'object' && Array.isArray(obj.pages)) {
+                    parsed = obj;
+                    break;
+                }
+            } catch {
+                /* try next */
+            }
+        }
+        if (parsed) break;
+    }
+    if (!parsed) return null;
+
+    const rawPages = Array.isArray(parsed.pages) ? parsed.pages : [];
+    const pages: PrdMockupPage[] = rawPages
+        .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+        .map((p, i) => {
+            const name = typeof p.name === 'string' && p.name ? p.name : `Screen ${i + 1}`;
+            return {
+                id:
+                    typeof p.id === 'string' && p.id
+                        ? p.id
+                        : name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                name,
+                description: typeof p.description === 'string' ? p.description : '',
+                html: typeof p.html === 'string' ? p.html : '',
+            };
+        })
+        .filter((p) => p.html.trim().length > 0);
+
+    return pages.length > 0 ? pages : null;
 };
 
 export const parseSuggestionOutput = (raw: string): PrdSuggestion[] | null => {
