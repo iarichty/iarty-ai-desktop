@@ -34,7 +34,7 @@ interface UsePrdBuilder {
     isSuggesting: boolean;
     refine: (prompt: string, model: string) => Promise<void>;
     generate: (model: string) => Promise<void>;
-    design_: (model: string) => Promise<void>;
+    design_: (model: string, chosenStyle?: Record<string, unknown> | null) => Promise<void>;
     suggest: (model: string, opts?: { silent?: boolean }) => Promise<void>;
     editMessage: (id: string, newContent: string, model: string) => Promise<void>;
     regenerateFrom: (id: string, model: string) => Promise<void>;
@@ -274,7 +274,7 @@ export function usePrdBuilder(): UsePrdBuilder {
     );
 
     const design_ = useCallback(
-        async (model: string) => {
+        async (model: string, chosenStyle?: Record<string, unknown> | null) => {
             if (isDesigning || isRefining || isGenerating) return;
             setIsDesigning(true);
             try {
@@ -284,12 +284,25 @@ export function usePrdBuilder(): UsePrdBuilder {
                 }));
                 await runStream(
                     '/ai/prd-builder/design',
-                    {},
+                    chosenStyle ? { chosenStyle: JSON.stringify(chosenStyle) } : {},
                     model,
                     history,
                     (full) => {
                         const parsed = parseDesignOutput(full);
-                        if (parsed) setDesign(parsed);
+                        if (parsed) {
+                            // Echo the user's curated pick back so the UI can render
+                            // the chosen catalog style even if the model omitted it.
+                            setDesign(
+                                chosenStyle
+                                    ? {
+                                          ...parsed,
+                                          chosen_style: chosenStyle as unknown as NonNullable<
+                                              PrdDesign['chosen_style']
+                                          >,
+                                      }
+                                    : parsed,
+                            );
+                        }
                     },
                     false,
                 );

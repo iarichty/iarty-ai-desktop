@@ -38,11 +38,13 @@ import ChatComposer from './ChatComposer';
 import FormattedContent from './FormattedContent';
 import SuggestionChips from './SuggestionChips';
 import PrdResultsWorkspace from './PrdResultsWorkspace';
+import DesignStylePicker from './DesignStylePicker';
 import { SessionList } from './SessionList';
 import { NavbarPortal } from './NavbarPortal';
 import { Button } from './Button';
 import type { PrdOutputTab, PrdSessionStatus, PrdMessage, PrdDesign } from '@/types/prd';
 import { containsPrdOutput, getFileIcon, stripPrdPayload, toIsoNow } from '@/lib/prdHelpers';
+import { getDesignStyleById, type DesignStyle } from '@/data/designStyles';
 import { useLanguage } from '@/context/useLanguage';
 
 interface Props {
@@ -69,6 +71,8 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
     const [showResults, setShowResults] = useState(false);
     const [panelTab, setPanelTab] = useState<PrdOutputTab>('prd');
+    const [selectedStyleId, setSelectedStyleId] = useState('');
+    const [isStylePickerOpen, setIsStylePickerOpen] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -98,6 +102,40 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
     const canGenerate = !prd.isRefining && !prd.isGenerating;
     const canGenerateDesign =
         !prd.design && !prd.isDesigning && !prd.isRefining && !prd.isGenerating && hasOutputs;
+
+    /** Builds the payload for the currently selected curated style (or null). */
+    const buildChosenStylePayload = useCallback(() => {
+        const style = selectedStyleId ? getDesignStyleById(selectedStyleId) : undefined;
+        if (!style) return null;
+        return {
+            id: style.id,
+            name: style.name,
+            tagline: style.tagline,
+            mood: style.mood,
+            color_palette: style.color_palette,
+            palette: style.palette,
+            typography: style.typography,
+            layout: style.layout,
+            motion: style.motion,
+            implementation_notes: style.implementation_notes,
+            unsplash: style.unsplash,
+        };
+    }, [selectedStyleId]);
+
+    const runGenerateDesign = useCallback(() => {
+        void prd.design_(modelCode, buildChosenStylePayload());
+    }, [prd, modelCode, buildChosenStylePayload]);
+
+    const handleSelectDesignStyle = useCallback(
+        (style: DesignStyle | null) => {
+            setSelectedStyleId(style ? style.id : '');
+            addNotification(
+                style ? t('prd.styleSet').replace('{name}', style.name) : t('prd.styleCleared'),
+                'success',
+            );
+        },
+        [addNotification, t],
+    );
 
     /* ── Local session auto-save ────────────────────────────────────────── */
     const firstUserText = prd.messages.find((m) => m.role === 'user')?.content ?? '';
@@ -371,6 +409,13 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
 
     return (
         <>
+            <DesignStylePicker
+                isOpen={isStylePickerOpen}
+                selectedId={selectedStyleId}
+                onSelect={handleSelectDesignStyle}
+                onClose={() => setIsStylePickerOpen(false)}
+            />
+
             {showResults && hasOutputs && (
                 <PrdResultsWorkspace
                     outputs={prd.outputs}
@@ -381,9 +426,7 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                     onAddNotification={addNotification}
                     onRegenerate={() => void prd.generate(modelCode)}
                     isRegenerating={prd.isGenerating}
-                    onGenerateDesign={
-                        canGenerateDesign ? () => void prd.design_(modelCode) : undefined
-                    }
+                    onGenerateDesign={canGenerateDesign ? runGenerateDesign : undefined}
                     isDesigning={prd.isDesigning}
                     onBackToChat={() => setShowResults(false)}
                 />
@@ -416,11 +459,21 @@ export function PrdBuilderView({ models, selected, autoSave = true }: Props): JS
                             {t('prd.generate')}
                         </Button>
                     )}
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsStylePickerOpen(true)}
+                    >
+                        <TbPalette className="h-4 w-4" />
+                        {selectedStyleId
+                            ? getDesignStyleById(selectedStyleId)?.name ?? t('prd.designStyle')
+                            : t('prd.designStyle')}
+                    </Button>
                     {canGenerateDesign && (
                         <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => void prd.design_(modelCode)}
+                            onClick={runGenerateDesign}
                             disabled={prd.isDesigning}
                         >
                             <TbPalette className="h-4 w-4" />

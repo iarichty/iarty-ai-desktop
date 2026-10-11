@@ -15,6 +15,7 @@ import {
 import type { IconType } from 'react-icons';
 import type { PrdDesign, PrdOutputs, PrdOutputTab, ParsedErDiagram, ParsedFlow } from '@/types/prd';
 import { parseErDiagram, parseFlowchart } from '@/lib/prdHelpers';
+import { unsplashUrl } from '@/data/designStyles';
 import Loader from './Loader';
 import FormattedContent from './FormattedContent';
 import { DatabaseTableView, PageFlowView } from './ArtifactViews';
@@ -330,6 +331,57 @@ function DesignPanel({ design }: { design: PrdDesign }): JSX.Element {
     const { t } = useLanguage();
     return (
         <div className="space-y-5">
+            {design.chosen_style && (
+                <div className="overflow-hidden rounded-2xl border border-border">
+                    <div className="flex items-center justify-between gap-3 bg-accent/10 px-4 py-2.5">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-text-h">
+                            <TbPalette className="h-3.5 w-3.5 text-accent" />
+                            {t('prd.chosenStyle')} · {design.chosen_style.name}
+                        </span>
+                        <span className="text-[10px] font-mono text-text">
+                            {design.chosen_style.mood}
+                        </span>
+                    </div>
+                    <div className="grid h-32 grid-cols-3 sm:h-40">
+                        {design.chosen_style.unsplash.slice(0, 3).map((id) => (
+                            <div key={id} className="relative overflow-hidden">
+                                <img
+                                    src={unsplashUrl(id, 500)}
+                                    alt=""
+                                    loading="lazy"
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                />
+                                <span
+                                    className="absolute inset-0"
+                                    style={{
+                                        background: `linear-gradient(160deg, transparent 50%, ${design.chosen_style!.palette.accent}b3)`,
+                                        mixBlendMode: 'multiply',
+                                    }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="p-4">
+                        <p className="mb-3 text-xs leading-relaxed text-text">
+                            {design.chosen_style.tagline}
+                        </p>
+                        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                            {design.chosen_style.color_palette.map((c) => (
+                                <span
+                                    key={c}
+                                    className="h-6 w-6 rounded-lg border border-border"
+                                    style={{ backgroundColor: c }}
+                                    title={c}
+                                />
+                            ))}
+                        </div>
+                        <p className="text-[11px] font-mono text-text">
+                            <span className="font-bold">{t('prd.typographyLabel')}:</span>{' '}
+                            {design.chosen_style.typography.headline}
+                        </p>
+                    </div>
+                </div>
+            )}
             {design.design_summary && (
                 <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 text-sm leading-relaxed text-text-h">
                     {design.design_summary}

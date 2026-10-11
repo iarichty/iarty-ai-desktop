@@ -32,6 +32,43 @@ export interface PrdDesign {
     design_styles: PrdDesignStyle[];
     primary_recommendation: string;
     design_summary: string;
+    /**
+     * When the user picked a curated style from the catalog, it is echoed back
+     * here (with full implementation detail) so the UI shows exactly which
+     * catalog style was implemented.
+     */
+    chosen_style?: DesignStyleSelection | null;
+}
+
+/**
+ * A curated design style chosen by the user from the 20-style catalog. The
+ * AI's design step must implement THIS style for the product.
+ */
+export interface DesignStyleSelection {
+    id: string;
+    name: string;
+    tagline: string;
+    mood: string;
+    color_palette: string[];
+    typography: {
+        headline: string;
+        body: string;
+        headline_style: string;
+        body_style: string;
+        google_fonts: string[];
+    };
+    layout: string[];
+    motion: string[];
+    implementation_notes: string[];
+    unsplash: string[];
+    palette: {
+        background: string;
+        surface: string;
+        text: string;
+        accent: string;
+        secondary: string;
+        border: string;
+    };
 }
 
 export interface PrdSuggestion {
