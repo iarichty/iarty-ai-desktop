@@ -169,6 +169,11 @@ export const aiApi = {
             } catch {
                 /* non-JSON error body */
             }
+            // 404 = the deployed backend is older than this client and does not
+            // expose this route yet; surface a clearer, actionable message.
+            if (res.status === 404) {
+                message = 'This feature is unavailable — the backend needs to be updated.';
+            }
             throw new ApiError(message, res.status);
         }
         return res;
