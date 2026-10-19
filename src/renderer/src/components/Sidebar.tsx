@@ -10,6 +10,7 @@ import {
     TbRobot,
     TbMicrophone,
     TbChevronLeft,
+    TbSpeakerphone,
 } from 'react-icons/tb';
 import type { IconType } from 'react-icons';
 import type { FeatureId } from '@shared/types';
@@ -34,6 +35,12 @@ const MENU: NavItem[] = [
         labelKey: 'sidebar.prdLabel',
         descriptionKey: 'sidebar.prdDesc',
         icon: TbBlocks,
+    },
+    {
+        id: 'tts',
+        labelKey: 'sidebar.ttsLabel',
+        descriptionKey: 'sidebar.ttsDesc',
+        icon: TbSpeakerphone,
     },
     {
         id: 'minutes',

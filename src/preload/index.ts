@@ -14,6 +14,7 @@ import type {
     LocalProviderKind,
     SessionFeature,
     StreamEvent,
+    TtsSynthesizeRequest,
 } from '@shared/types';
 import type { IartyBridge } from '@shared/bridge';
 
@@ -72,6 +73,12 @@ const api: IartyBridge = {
             ipcRenderer.on('chat:stream', handler);
             return () => ipcRenderer.removeListener('chat:stream', handler);
         },
+    },
+    tts: {
+        catalog: () => ipcRenderer.invoke('tts:catalog'),
+        synthesize: (req: TtsSynthesizeRequest) => ipcRenderer.invoke('tts:synthesize', req),
+        saveAs: (payload: { base64: string; filename: string }) =>
+            ipcRenderer.invoke('tts:saveAs', payload),
     },
     settings: {
         get: () => ipcRenderer.invoke('settings:get') as Promise<AppSettings>,

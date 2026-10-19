@@ -162,6 +162,7 @@ export interface FeatureStreamRequest {
 /** Feature ids the desktop sidebar can route to. */
 export type FeatureId =
     | 'chat'
+    | 'tts'
     | 'prd-builder'
     | 'minutes'
     | 'study'
@@ -272,4 +273,122 @@ export interface PersistedState {
     expire?: number;
     user?: AuthUser;
     settings?: AppSettings;
+}
+
+// ── Text-to-Speech ─────────────────────────────────────────────────────────
+
+/** A Gemini TTS model from `GET /api/tts/catalog`. */
+export interface TtsModel {
+    code: string;
+    label: string;
+    description: string;
+    multiSpeaker: boolean;
+    tags: boolean;
+    multiplier: number;
+    default: boolean;
+    tier: 'studio' | 'lite' | 'legacy';
+    legacy?: boolean;
+}
+
+/** A prebuilt studio voice. */
+export interface TtsVoice {
+    name: string;
+    tone: string;
+    gender: 'male' | 'female';
+}
+
+/** One inline expression tag. */
+export interface TtsExpressionTag {
+    tag: string;
+    label: string;
+    hint: string;
+}
+
+/** A palette section of expression tags. */
+export interface TtsTagGroup {
+    id: string;
+    label: string;
+    description: string;
+    tags: TtsExpressionTag[];
+}
+
+/** A one-tap delivery style. */
+export interface TtsStylePreset {
+    id: string;
+    label: string;
+    style: string;
+}
+
+/** An export format offered in the download menu. */
+export interface TtsFormat {
+    id: 'wav' | 'mp3' | 'ogg' | 'webm';
+    label: string;
+    ext: string;
+    mimeType: string;
+    description: string;
+    lossless?: boolean;
+    conversion: 'none' | 'mp3-encoder' | 'media-recorder';
+}
+
+/** The public TTS catalog. */
+export interface TtsCatalog {
+    models: TtsModel[];
+    defaultModel: string;
+    voices: TtsVoice[];
+    defaultVoice: string;
+    expressionTags: TtsTagGroup[];
+    stylePresets: TtsStylePreset[];
+    formats: TtsFormat[];
+    defaultFormat: TtsFormat['id'];
+    sampleRates: number[];
+    limits: {
+        maxChars: number;
+        maxStyleChars: number;
+        maxSpeakers: number;
+        maxSpeakerNameChars: number;
+    };
+}
+
+/** One speaker of a dialogue. */
+export interface TtsSpeakerInput {
+    name: string;
+    voice: string;
+}
+
+/** One spoken turn. */
+export interface TtsTurnInput {
+    text: string;
+    speaker?: string;
+    style?: string;
+}
+
+/** Request body for `/tts/synthesize`. */
+export interface TtsSynthesizeRequest {
+    model?: string;
+    text?: string;
+    style?: string;
+    voice?: string;
+    speakers?: TtsSpeakerInput[];
+    turns?: TtsTurnInput[];
+    sampleRate?: number;
+}
+
+/** A generated clip as delivered over IPC (base64 WAV + metadata). */
+export interface TtsClipResult {
+    audioBase64: string;
+    mimeType: string;
+    sampleRate: number;
+    durationMs: number;
+    charCount: number;
+    credits: number;
+    multiSpeaker: boolean;
+    model: string;
+}
+
+/** Result of saving a clip via the native save dialog. */
+export interface TtsSaveResult {
+    /** False when the user cancelled the dialog. */
+    saved: boolean;
+    /** Absolute path written, when `saved` is true. */
+    filePath?: string;
 }

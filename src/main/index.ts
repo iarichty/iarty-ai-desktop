@@ -10,11 +10,12 @@
  * Security posture: contextIsolation ON, nodeIntegration OFF, sandbox ON,
  * navigation locked to local origins, window.open externalised.
  */
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authManager } from './auth';
-import { aiApi, ApiError } from './api';
+import { aiApi, ttsApi, ApiError } from './api';
 import { listLocalModels } from './localLlm';
 import {
     cancelChat,
@@ -34,6 +35,8 @@ import type {
     FeatureStreamRequest,
     SessionFeature,
     StoredSession,
+    TtsSynthesizeRequest,
+    TtsSaveResult,
 } from '@shared/types';
 
 /**
@@ -202,6 +205,49 @@ function registerIpc(): void {
         ) => startStudyQuiz(req),
     );
     ipcMain.handle('feature:cancel', (_e, requestId: string) => cancelChat(requestId));
+
+    // ── Text-to-Speech ──────────────────────────────────────────────────
+    ipcMain.handle('tts:catalog', async () => {
+        const session = await authManager.getSession();
+        return ttsApi.getCatalog(session?.accessToken);
+    });
+
+    ipcMain.handle('tts:synthesize', async (_e, req: TtsSynthesizeRequest) => {
+        const session = await authManager.getSession();
+        if (!session) throw new Error('Not authenticated');
+        return ttsApi.synthesize(session.accessToken, req);
+    });
+
+    /**
+     * Saves a generated clip through the native save dialog.
+     *
+     * Unlike the browser's download flow, the user picks the destination here,
+     * so the default path is only a suggestion. The renderer passes the already
+     * encoded bytes (WAV passthrough or a client-side transcode) as base64.
+     */
+    ipcMain.handle(
+        'tts:saveAs',
+        async (_e, payload: { base64: string; filename: string }): Promise<TtsSaveResult> => {
+            const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
+            const options = {
+                title: 'Save audio',
+                defaultPath: join(app.getPath('downloads'), payload.filename),
+                filters: [
+                    { name: 'Audio', extensions: ['wav', 'mp3', 'ogg', 'webm'] },
+                    { name: 'All files', extensions: ['*'] },
+                ],
+            };
+
+            const result = owner
+                ? await dialog.showSaveDialog(owner, options)
+                : await dialog.showSaveDialog(options);
+
+            if (result.canceled || !result.filePath) return { saved: false };
+
+            await writeFile(result.filePath, Buffer.from(payload.base64, 'base64'));
+            return { saved: true, filePath: result.filePath };
+        },
+    );
 
     ipcMain.handle('settings:get', () => persistence.getSettings());
     ipcMain.handle('settings:set', (_e, settings: AppSettings) => {

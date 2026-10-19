@@ -13,6 +13,7 @@ import { Navbar } from './Navbar';
 import { ChatPanel } from './ChatPanel';
 import { PrdBuilderView } from './PrdBuilderView';
 import { MinutesView } from './MinutesView';
+import { TtsView } from './TtsView';
 import { StudyView } from './StudyView';
 import { RoastView } from './RoastView';
 import { SettingsPanel } from './SettingsPanel';
@@ -106,6 +107,7 @@ export function MainLayout({ session, settings, onSaveSettings, onLogout }: Prop
                                     autoSave={settings.autoSaveSessions}
                                 />
                             )}
+                            {view === 'tts' && <TtsView />}
                             {view === 'minutes' && (
                                 <MinutesView
                                     selected={selected}

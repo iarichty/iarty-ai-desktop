@@ -18,6 +18,10 @@ import type {
     SessionFeature,
     SessionSummary,
     StoredSession,
+    TtsCatalog,
+    TtsClipResult,
+    TtsSaveResult,
+    TtsSynthesizeRequest,
 } from './types';
 
 export interface IartyBridge {
@@ -61,6 +65,16 @@ export interface IartyBridge {
         onStream: (
             listener: (payload: { requestId: string; event: StreamEvent }) => void,
         ) => () => void;
+    };
+    /**
+     * Text-to-speech. `catalog` is public; `synthesize` is billed like any
+     * other AI feature. `saveAs` opens the native save dialog and writes the
+     * already-encoded bytes to the chosen path.
+     */
+    tts: {
+        catalog: () => Promise<TtsCatalog>;
+        synthesize: (req: TtsSynthesizeRequest) => Promise<TtsClipResult>;
+        saveAs: (payload: { base64: string; filename: string }) => Promise<TtsSaveResult>;
     };
     settings: {
         get: () => Promise<AppSettings>;

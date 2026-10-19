@@ -13,7 +13,14 @@
  */
 import { ACCOUNT_API_URL, AI_API_URL } from './config';
 import { getCookieHeader, readSetCookies, storeSetCookie, clearCookies, setCookieHeader } from './http';
-import type { ApiEnvelope, AiPlan, CloudModel } from '@shared/types';
+import type {
+    ApiEnvelope,
+    AiPlan,
+    CloudModel,
+    TtsCatalog,
+    TtsClipResult,
+    TtsSynthesizeRequest,
+} from '@shared/types';
 
 export class ApiError extends Error {
     status: number;
@@ -218,5 +225,34 @@ export const aiApi = {
             }
         }
         return content;
+    },
+};
+
+// ── Text-to-Speech ─────────────────────────────────────────────────────────
+
+/**
+ * Text-to-speech endpoints.
+ *
+ * `synthesize` asks for the JSON envelope (`Accept: application/json`) rather
+ * than raw bytes so the renderer also receives the clip's duration and credit
+ * cost. The base64 WAV is handed to the renderer, which owns the player and the
+ * client-side export.
+ */
+export const ttsApi = {
+    /** Public catalog — works signed-out, but the token is sent when present. */
+    async getCatalog(token?: string): Promise<TtsCatalog> {
+        return request<TtsCatalog>(AI_API_URL, '/tts/catalog', { token });
+    },
+
+    /**
+     * Generates speech. A 403 means out-of-credits or an expired plan, which
+     * the renderer maps onto an upgrade prompt.
+     */
+    async synthesize(token: string, body: TtsSynthesizeRequest): Promise<TtsClipResult> {
+        return request<TtsClipResult>(AI_API_URL, '/tts/synthesize', {
+            method: 'POST',
+            token,
+            body,
+        });
     },
 };
