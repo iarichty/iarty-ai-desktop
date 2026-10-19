@@ -212,10 +212,10 @@ function registerIpc(): void {
         return ttsApi.getCatalog(session?.accessToken);
     });
 
-    ipcMain.handle('tts:synthesize', async (_e, req: TtsSynthesizeRequest) => {
+    ipcMain.handle('tts:synthesize', async (_e, req: TtsSynthesizeRequest, apiKey?: string) => {
         const session = await authManager.getSession();
         if (!session) throw new Error('Not authenticated');
-        return ttsApi.synthesize(session.accessToken, req);
+        return ttsApi.synthesize(session.accessToken, req, apiKey);
     });
 
     /**

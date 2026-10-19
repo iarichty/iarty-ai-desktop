@@ -296,6 +296,13 @@ export const zh = {
         failed: '生成语音失败',
         busy: '语音服务繁忙，请稍后重试。',
         insufficientCredits: '积分不足。请尝试更短的文稿或升级套餐。',
+        apiKeyLabel: '您的 Gemini API 密钥',
+        apiKeyBadge: '您的密钥',
+        noKeyBadge: '无需密钥',
+        apiKeyGet: '获取密钥',
+        apiKeyRequired: '此模型需要您在 Google AI Studio 创建的 Gemini API 密钥。',
+        apiKeyNote: '保存在本设备并随请求发送。费用计入您自己的项目，不消耗 IARTY 积分。',
+        errApiKeyRequired: '请先添加 Gemini API 密钥',
         catalogError: '无法加载音色列表。请重新登录或检查网络后重新打开此页面。',
     },
     minutes: {

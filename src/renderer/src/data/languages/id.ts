@@ -306,6 +306,13 @@ export const id = {
         failed: 'Gagal membuat suara',
         busy: 'Layanan suara sedang sibuk. Coba lagi sebentar.',
         insufficientCredits: 'Kredit tidak cukup untuk audio ini. Coba naskah lebih pendek atau upgrade paket.',
+        apiKeyLabel: 'API key Gemini kamu',
+        apiKeyBadge: 'Key kamu',
+        noKeyBadge: 'Tanpa key',
+        apiKeyGet: 'Ambil key',
+        apiKeyRequired: 'Model ini butuh API key Gemini milikmu sendiri dari Google AI Studio.',
+        apiKeyNote: 'Disimpan di perangkat ini dan dikirim per permintaan. Google menagih proyekmu sendiri; kredit IARTY tidak terpakai.',
+        errApiKeyRequired: 'Tambahkan API key Gemini dulu',
         catalogError:
             'Gagal memuat daftar suara. Coba login ulang atau periksa koneksi, lalu buka lagi halaman ini.',
     },

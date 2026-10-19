@@ -73,7 +73,8 @@ export interface IartyBridge {
      */
     tts: {
         catalog: () => Promise<TtsCatalog>;
-        synthesize: (req: TtsSynthesizeRequest) => Promise<TtsClipResult>;
+        /** `apiKey` is the user's own Gemini key, required by the 3.8 models. */
+        synthesize: (req: TtsSynthesizeRequest, apiKey?: string) => Promise<TtsClipResult>;
         saveAs: (payload: { base64: string; filename: string }) => Promise<TtsSaveResult>;
     };
     settings: {

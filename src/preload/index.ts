@@ -76,7 +76,8 @@ const api: IartyBridge = {
     },
     tts: {
         catalog: () => ipcRenderer.invoke('tts:catalog'),
-        synthesize: (req: TtsSynthesizeRequest) => ipcRenderer.invoke('tts:synthesize', req),
+        synthesize: (req: TtsSynthesizeRequest, apiKey?: string) =>
+            ipcRenderer.invoke('tts:synthesize', req, apiKey),
         saveAs: (payload: { base64: string; filename: string }) =>
             ipcRenderer.invoke('tts:saveAs', payload),
     },

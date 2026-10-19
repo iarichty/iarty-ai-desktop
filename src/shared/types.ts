@@ -288,6 +288,16 @@ export interface TtsModel {
     default: boolean;
     tier: 'studio' | 'lite' | 'legacy';
     legacy?: boolean;
+    /** True when the model is billed to the caller's own Gemini API key. */
+    requiresOwnKey: boolean;
+}
+
+/** Where to obtain a Gemini API key, as advertised by the backend catalog. */
+export interface TtsApiKeyHelp {
+    provider: string;
+    url: string;
+    tutorialPath: string;
+    keyPrefix: string;
 }
 
 /** A prebuilt studio voice. */
@@ -339,6 +349,7 @@ export interface TtsCatalog {
     expressionTags: TtsTagGroup[];
     stylePresets: TtsStylePreset[];
     formats: TtsFormat[];
+    apiKeyHelp: TtsApiKeyHelp;
     defaultFormat: TtsFormat['id'];
     sampleRates: number[];
     limits: {
@@ -376,6 +387,8 @@ export interface TtsSynthesizeRequest {
 /** A generated clip as delivered over IPC (base64 WAV + metadata). */
 export interface TtsClipResult {
     audioBase64: string;
+    /** True when the clip was generated with the caller's own key. */
+    requiresOwnKey?: boolean;
     mimeType: string;
     sampleRate: number;
     durationMs: number;

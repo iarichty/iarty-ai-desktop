@@ -311,6 +311,13 @@ export const en = {
         failed: 'Could not generate speech',
         busy: 'The speech service is busy. Please try again in a moment.',
         insufficientCredits: 'Not enough credits for this clip. Try a shorter script or upgrade your plan.',
+        apiKeyLabel: 'Your Gemini API key',
+        apiKeyBadge: 'Your key',
+        noKeyBadge: 'No key',
+        apiKeyGet: 'Get key',
+        apiKeyRequired: 'This model needs your own Gemini API key from Google AI Studio.',
+        apiKeyNote: 'Stored on this device and sent per request. Google bills your own project; no IARTY credits are used.',
+        errApiKeyRequired: 'Add your Gemini API key first',
         catalogError:
             'Could not load the voice catalog. Sign in again or check your connection, then reopen this page.',
     },

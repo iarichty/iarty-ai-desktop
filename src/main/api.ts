@@ -37,6 +37,8 @@ interface RequestOptions {
     method?: string;
     body?: unknown;
     token?: string;
+    /** User-supplied Gemini key, forwarded as `x-api-key`. */
+    apiKey?: string;
     formData?: FormData;
     signal?: AbortSignal;
 }
@@ -53,6 +55,8 @@ async function request<T>(base: string, path: string, opts: RequestOptions): Pro
     }
 
     if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
+    // Sent as a header (never in the JSON body) so it stays out of logs.
+    if (opts.apiKey) headers['x-api-key'] = opts.apiKey;
     const cookie = getCookieHeader();
     if (cookie) headers.Cookie = cookie;
 
@@ -247,12 +251,20 @@ export const ttsApi = {
     /**
      * Generates speech. A 403 means out-of-credits or an expired plan, which
      * the renderer maps onto an upgrade prompt.
+     *
+     * `apiKey` is the user's own Gemini key. The 3.8 models are BYO-key, so
+     * without it the backend rejects the request; legacy models ignore it.
      */
-    async synthesize(token: string, body: TtsSynthesizeRequest): Promise<TtsClipResult> {
+    async synthesize(
+        token: string,
+        body: TtsSynthesizeRequest,
+        apiKey?: string,
+    ): Promise<TtsClipResult> {
         return request<TtsClipResult>(AI_API_URL, '/tts/synthesize', {
             method: 'POST',
             token,
             body,
+            apiKey,
         });
     },
 };

@@ -3,6 +3,8 @@ import {
     TbAlertTriangle,
     TbCoins,
     TbDeviceFloppy,
+    TbExternalLink,
+    TbKey,
     TbLoader2,
     TbMicrophone2,
     TbPlayerPause,
@@ -71,6 +73,10 @@ export function TtsView(): JSX.Element {
     const [voice, setVoice] = useState('Kore');
     const [model, setModel] = useState('gemini-3.8-flash-tts');
 
+    // The user's own Gemini key. Persisted in the app's settings store so it
+    // only has to be entered once, and never sent anywhere but the backend.
+    const [apiKey, setApiKey] = useState<string>('');
+
     const [names, setNames] = useState<Record<DialogueKey, string>>({ a: 'Aria', b: 'Bima' });
     const [voices, setVoices] = useState<Record<DialogueKey, string>>({ a: 'Kore', b: 'Puck' });
     const [turns, setTurns] = useState<Turn[]>([
@@ -127,6 +133,10 @@ export function TtsView(): JSX.Element {
         if (!isDialogue) return [{ name: 'Speaker 1', voice }];
         return DIALOGUE_KEYS.map((key) => ({ name: names[key].trim() || key.toUpperCase(), voice: voices[key] }));
     }, [isDialogue, voice, names, voices]);
+
+    const needsOwnKey = Boolean(catalog?.models.find((item) => item.code === model)?.requiresOwnKey);
+    const hasOwnKey = apiKey.trim().length >= 20;
+    const keyMissing = needsOwnKey && !hasOwnKey;
 
     const charCount = activeTurns.reduce((total, turn) => total + turn.text.length, 0);
     const maxChars = catalog?.limits.maxChars ?? 4000;
@@ -193,10 +203,17 @@ export function TtsView(): JSX.Element {
 
     const generate = async (): Promise<void> => {
         if (!hasContent || overLimit || isGenerating) return;
+        if (keyMissing) {
+            addNotification(t('tts.errApiKeyRequired'), 'warning');
+            return;
+        }
 
         setIsGenerating(true);
         try {
-            const result = await window.iarty.tts.synthesize(request);
+            const result = await window.iarty.tts.synthesize(
+                request,
+                needsOwnKey ? apiKey.trim() : undefined,
+            );
             setClip(result);
             addNotification(t('tts.success'), 'success');
         } catch (error) {
@@ -368,6 +385,87 @@ export function TtsView(): JSX.Element {
                 {/* ── Controls ────────────────────────────────────────── */}
                 <div className="space-y-4">
                     <section className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--surface-2)] p-4">
+                        <h2 className="mb-2 text-sm font-bold text-text-h">{t('tts.model')}</h2>
+                        <div className="space-y-1.5">
+                            {(catalog?.models ?? []).map((item) => {
+                                const isActive = item.code === model;
+                                return (
+                                    <button
+                                        key={item.code}
+                                        type="button"
+                                        onClick={() => setModel(item.code)}
+                                        title={item.description}
+                                        className={`w-full rounded-xl border px-2.5 py-1.5 text-left transition-colors ${
+                                            isActive
+                                                ? 'border-accent bg-accent/10'
+                                                : 'border-[color:var(--border)] hover:border-accent/60'
+                                        }`}
+                                    >
+                                        <span className="flex items-center justify-between gap-2">
+                                            <span className={`truncate text-[11px] font-bold ${isActive ? 'text-accent' : 'text-text-h'}`}>
+                                                {item.label}
+                                            </span>
+                                            <span
+                                                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase ${
+                                                    item.requiresOwnKey
+                                                        ? 'bg-accent/15 text-accent'
+                                                        : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                                }`}
+                                            >
+                                                {item.requiresOwnKey ? t('tts.apiKeyBadge') : t('tts.noKeyBadge')}
+                                            </span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+
+                    {/* Gemini 3.8 models are billed to the user's own key. */}
+                    {needsOwnKey && catalog && (
+                        <section
+                            className={`rounded-3xl border p-4 ${
+                                keyMissing
+                                    ? 'border-amber-500/50 bg-amber-500/10'
+                                    : 'border-[color:var(--border)] bg-[color:var(--surface-2)]'
+                            }`}
+                        >
+                            <div className="mb-2 flex items-start justify-between gap-2">
+                                <span className="flex items-center gap-1.5">
+                                    <TbKey className="text-accent" />
+                                    <h2 className="text-sm font-bold text-text-h">{t('tts.apiKeyLabel')}</h2>
+                                </span>
+                                {/* A target="_blank" anchor is handled by the main
+                                    process's window-open handler, which routes it to
+                                    the system browser. */}
+                                <a
+                                    href={catalog.apiKeyHelp.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-[10px] font-black text-accent"
+                                >
+                                    {t('tts.apiKeyGet')} <TbExternalLink />
+                                </a>
+                            </div>
+                            <input
+                                type="password"
+                                value={apiKey}
+                                onChange={(event) => setApiKey(event.target.value)}
+                                placeholder={`${catalog.apiKeyHelp.keyPrefix}…`}
+                                autoComplete="off"
+                                spellCheck={false}
+                                className="w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--bg)] px-2.5 py-1.5 font-mono text-xs text-text-h outline-none focus:border-accent"
+                            />
+                            {keyMissing && (
+                                <p className="mt-1.5 text-[10px] leading-snug text-amber-600 dark:text-amber-400">
+                                    {t('tts.apiKeyRequired')}
+                                </p>
+                            )}
+                            <p className="mt-1.5 text-[10px] leading-relaxed text-text">{t('tts.apiKeyNote')}</p>
+                        </section>
+                    )}
+
+                    <section className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--surface-2)] p-4">
                         <h2 className="mb-2 text-sm font-bold text-text-h">{t('tts.voice')}</h2>
                         {!isDialogue ? (
                             <select
@@ -479,7 +577,7 @@ export function TtsView(): JSX.Element {
                         variant="primary"
                         size="lg"
                         onClick={() => void generate()}
-                        disabled={!hasContent || overLimit || isGenerating}
+                        disabled={!hasContent || overLimit || isGenerating || keyMissing}
                         className="w-full"
                     >
                         <span className="flex items-center justify-center gap-2">
