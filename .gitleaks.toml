@@ -1,0 +1,6 @@
+# Gitleaks configuration — scan for committed secrets locally & in CI.
+# https://github.com/gitleaks/gitleaks
+title = "IARTY AI Desktop"
+
+[extend]
+useDefault = true
