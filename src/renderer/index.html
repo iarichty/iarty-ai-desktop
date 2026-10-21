@@ -14,7 +14,7 @@
                 try {
                     // First visit (no saved choice) -> light, regardless of the
                     // OS preference; only an explicit toggle selects dark.
-                    var dark = localStorage.getItem('iarty-desktop-theme') === 'dark';
+                    var dark = localStorage.getItem('iarty-desktop-theme-v2') === 'dark';
                     document.documentElement.classList.add(dark ? 'dark' : 'light');
                     document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
                 } catch (e) {

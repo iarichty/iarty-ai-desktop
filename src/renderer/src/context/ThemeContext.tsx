@@ -10,7 +10,9 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 const BLOOM_DURATION_MS = 700;
-const STORAGE_KEY = 'iarty-desktop-theme';
+// v2: bumped so values saved by the old dark-by-default build are ignored
+// once; the key must stay in sync with the pre-paint script in index.html.
+const STORAGE_KEY = 'iarty-desktop-theme-v2';
 
 /**
  * Circle-bloom reveal, matching the IARTY web app. Uses the View Transitions
