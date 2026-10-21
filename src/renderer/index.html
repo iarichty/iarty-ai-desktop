@@ -12,14 +12,13 @@
             // Pre-paint theme so there is no flash of the wrong colours.
             (function () {
                 try {
-                    var saved = localStorage.getItem('iarty-desktop-theme');
-                    var dark =
-                        saved === 'dark' ||
-                        (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                    // First visit (no saved choice) -> light, regardless of the
+                    // OS preference; only an explicit toggle selects dark.
+                    var dark = localStorage.getItem('iarty-desktop-theme') === 'dark';
                     document.documentElement.classList.add(dark ? 'dark' : 'light');
                     document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
                 } catch (e) {
-                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.add('light');
                 }
             })();
         </script>

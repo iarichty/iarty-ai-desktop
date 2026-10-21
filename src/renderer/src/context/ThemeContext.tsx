@@ -43,7 +43,8 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
     const [theme, setTheme] = useState<Theme>(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved === 'light' || saved === 'dark') return saved;
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        // First visit: default to light (system preference is not followed).
+        return 'light';
     });
 
     useEffect(() => {
