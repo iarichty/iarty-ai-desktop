@@ -17,6 +17,7 @@ import {
     TbTerminal2,
     TbLayersLinked,
     TbCode,
+    TbBrandGithub,
 } from 'react-icons/tb';
 import type { IconType } from 'react-icons';
 import type {
@@ -50,6 +51,9 @@ import {
 import Loader from './Loader';
 import FormattedContent from './FormattedContent';
 import PageMockupsPanel from './PageMockupsPanel';
+import GitHubExportModal from './GitHubExportModal';
+import PrdRefineDrawer from './PrdRefineDrawer';
+import type { FileToCommit } from '../lib/githubExporter';
 import { DatabaseTableView, PageFlowView } from './ArtifactViews';
 import { useLanguage } from '@/context/useLanguage';
 
@@ -86,6 +90,8 @@ interface Props {
     onCancelMockups?: () => void;
     /** Regenerates a single page (retry for a failed page, or refresh one page). */
     onRegenerateMockupPage?: (target: MockupTarget) => void;
+    onIterateRefinement?: (instruction: string) => Promise<void>;
+    isIteratingRefinement?: boolean;
 }
 
 const TABS: { key: PrdOutputTab; label: string; icon: IconType }[] = [
@@ -129,9 +135,13 @@ export default function PrdResultsWorkspace({
     mockupProgress = null,
     onCancelMockups,
     onRegenerateMockupPage,
+    onIterateRefinement,
+    isIteratingRefinement = false,
 }: Props): JSX.Element {
     const { t } = useLanguage();
     const [copied, setCopied] = useState(false);
+    const [githubModalOpen, setGithubModalOpen] = useState(false);
+    const [refineDrawerOpen, setRefineDrawerOpen] = useState(false);
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -217,6 +227,57 @@ export default function PrdResultsWorkspace({
             : resolvedTargets;
     const screenNames = filteredTargets.map((t) => t.name);
 
+    const githubFiles: FileToCommit[] = useMemo(() => {
+        const list: FileToCommit[] = [];
+        if (outputs.prd_markdown) {
+            list.push({ path: 'PRD.md', content: outputs.prd_markdown });
+            list.push({
+                path: 'README.md',
+                content: `# ${projectTitle || 'AI App Blueprint'}\n\nGenerated with [IARTY AI](https://iarty.ai).\n\n## Contents\n- \`PRD.md\` - Product Requirement Document\n- \`.cursorrules\` - Coding rules for Cursor & AI agents\n- \`CLAUDE.md\` - Agent instructions for Claude Code\n- \`AGENTS.md\` - Architecture & guidelines\n- \`TASKS.md\` - Sprint breakdown\n`,
+            });
+        }
+        if (agentRules?.cursorrules) {
+            list.push({ path: '.cursorrules', content: agentRules.cursorrules });
+        }
+        if (agentRules?.claudeMd) {
+            list.push({ path: 'CLAUDE.md', content: agentRules.claudeMd });
+        }
+        if (agentRules?.agentsMd) {
+            list.push({ path: 'AGENTS.md', content: agentRules.agentsMd });
+        }
+        if (prdTasks && prdTasks.length > 0) {
+            list.push({
+                path: 'TASKS.md',
+                content: prdTasks
+                    .map(
+                        (p) =>
+                            `# Phase ${p.phaseNumber}: ${p.phaseTitle}\n\n${p.summary}\n\n` +
+                            p.tasks
+                                .map(
+                                    (t) =>
+                                        `### [${t.id}] ${t.title}\n${t.description}\n\n**Agent Prompt:**\n\`\`\`text\n${t.promptForAgent}\n\`\`\`\n\n**Acceptance Criteria:**\n- ${t.acceptanceCriteria.join('\n- ')}\n`,
+                                )
+                                .join('\n'),
+                    )
+                    .join('\n---\n\n'),
+            });
+            list.push({ path: 'TASKS.json', content: JSON.stringify(prdTasks, null, 2) });
+        }
+        if (outputs.database_schema) {
+            list.push({
+                path: 'database-schema.mermaid',
+                content: outputs.database_schema,
+            });
+        }
+        if (outputs.page_flow) {
+            list.push({
+                path: 'page-flow.mermaid',
+                content: outputs.page_flow,
+            });
+        }
+        return list;
+    }, [outputs, projectTitle, agentRules, prdTasks]);
+
     return (
         <div className="fixed inset-0 z-[60] flex flex-col bg-slate-50 text-slate-900 dark:bg-neutral-950 dark:text-white">
             {/* Top bar */}
@@ -244,6 +305,24 @@ export default function PrdResultsWorkspace({
                     </div>
 
                     <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                        {onIterateRefinement && (
+                            <button
+                                onClick={() => setRefineDrawerOpen(true)}
+                                disabled={isIteratingRefinement}
+                                className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-blue-500/30 bg-blue-50/50 px-3 py-2 text-xs font-semibold text-blue-600 transition-all hover:bg-blue-100/50 active:scale-95 disabled:opacity-40 dark:bg-blue-950/40 dark:text-blue-400"
+                            >
+                                <TbSparkles className="h-4 w-4" />
+                                <span className="hidden sm:inline">Iterate with AI</span>
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setGithubModalOpen(true)}
+                            disabled={!outputs.prd_markdown}
+                            className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:bg-neutral-50 active:scale-95 disabled:opacity-40 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                        >
+                            <TbBrandGithub className="h-4 w-4" />
+                            <span className="hidden sm:inline">Push to GitHub</span>
+                        </button>
                         {onGenerateDesign && (
                             <button
                                 onClick={() => {
@@ -513,6 +592,28 @@ export default function PrdResultsWorkspace({
                     </div>
                 </main>
             </div>
+
+            {/* GitHub Export Modal */}
+            <GitHubExportModal
+                isOpen={githubModalOpen}
+                onClose={() => setGithubModalOpen(false)}
+                projectTitle={projectTitle}
+                files={githubFiles}
+                onAddNotification={onAddNotification}
+            />
+
+            {/* Refinement Drawer */}
+            {onIterateRefinement && (
+                <PrdRefineDrawer
+                    isOpen={refineDrawerOpen}
+                    onClose={() => setRefineDrawerOpen(false)}
+                    onRefineSubmit={async (instruction) => {
+                        await onIterateRefinement(instruction);
+                        setRefineDrawerOpen(false);
+                    }}
+                    isRefining={isIteratingRefinement}
+                />
+            )}
         </div>
     );
 }
