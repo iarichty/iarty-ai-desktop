@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     TbFileText,
@@ -13,6 +13,10 @@ import {
     TbExternalLink,
     TbArrowLeft,
     TbDeviceDesktop,
+    TbListCheck,
+    TbTerminal2,
+    TbLayersLinked,
+    TbCode,
 } from 'react-icons/tb';
 import type { IconType } from 'react-icons';
 import type {
@@ -25,6 +29,17 @@ import type {
     ParsedFlow,
 } from '@/types/prd';
 import { parseErDiagram, parseFlowchart } from '@/lib/prdHelpers';
+import {
+    generateAgentRules,
+    generatePrdTasks,
+    parseArchitectureCanvas,
+} from '@/lib/prdAgentGenerators';
+import {
+    PrdTasksView,
+    AgentRulesView,
+    CodebaseTemplatesView,
+    ArchitectureCanvasView,
+} from './ExtendedPrdPanels';
 import { designPreviewUrl } from '@/data/designStyles';
 import {
     derivePageTargets,
@@ -73,12 +88,16 @@ interface Props {
     onRegenerateMockupPage?: (target: MockupTarget) => void;
 }
 
-const TABS: { key: PrdOutputTab; labelKey: string; icon: IconType }[] = [
-    { key: 'prd', labelKey: 'prdWorkspace.tabDocument', icon: TbFileText },
-    { key: 'database', labelKey: 'prdWorkspace.tabSchema', icon: TbDatabase },
-    { key: 'flow', labelKey: 'prdWorkspace.tabFlow', icon: TbRoute },
-    { key: 'design', labelKey: 'prdWorkspace.tabDesign', icon: TbPalette },
-    { key: 'mockup', labelKey: 'prdWorkspace.tabMockups', icon: TbDeviceDesktop },
+const TABS: { key: PrdOutputTab; label: string; icon: IconType }[] = [
+    { key: 'prd', label: 'PRD Document', icon: TbFileText },
+    { key: 'tasks', label: 'PRDTask', icon: TbListCheck },
+    { key: 'agent-rules', label: 'Agent Rules', icon: TbTerminal2 },
+    { key: 'database', label: 'Database Schema', icon: TbDatabase },
+    { key: 'flow', label: 'Page Flow', icon: TbRoute },
+    { key: 'canvas', label: 'Canvas', icon: TbLayersLinked },
+    { key: 'templates', label: 'Templates', icon: TbCode },
+    { key: 'design', label: 'Design', icon: TbPalette },
+    { key: 'mockup', label: 'UI Mockups', icon: TbDeviceDesktop },
 ];
 
 /**
@@ -167,6 +186,21 @@ export default function PrdResultsWorkspace({
     const parsedFlow: ParsedFlow | null = outputs.page_flow
         ? parseFlowchart(outputs.page_flow)
         : null;
+
+    const agentRules = useMemo(
+        () => generateAgentRules(projectTitle, outputs, design),
+        [projectTitle, outputs, design],
+    );
+
+    const prdTasks = useMemo(
+        () => generatePrdTasks(projectTitle, outputs),
+        [projectTitle, outputs],
+    );
+
+    const architectureCanvas = useMemo(
+        () => parseArchitectureCanvas(projectTitle, outputs),
+        [projectTitle, outputs],
+    );
     // Prefer targets handed down from the view; otherwise derive them here.
     const resolvedTargets =
         mockupTargets ??
@@ -294,7 +328,7 @@ export default function PrdResultsWorkspace({
                                 )}
                                 <Icon className="relative z-10 h-4 w-4 shrink-0" />
                                 <span className="relative z-10 hidden truncate md:inline">
-                                    {t(tab.labelKey)}
+                                    {tab.label}
                                 </span>
                             </button>
                         );
@@ -348,6 +382,56 @@ export default function PrdResultsWorkspace({
                                 </motion.div>
                             )}
 
+                            {activeTab === 'tasks' && (
+                                <motion.div
+                                    key="tasks"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.25 }}
+                                >
+                                    <PrdTasksView
+                                        phases={prdTasks}
+                                        onAddNotification={onAddNotification}
+                                    />
+                                </motion.div>
+                            )}
+                            {activeTab === 'agent-rules' && (
+                                <motion.div
+                                    key="agent-rules"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.25 }}
+                                >
+                                    <AgentRulesView
+                                        rules={agentRules}
+                                        onAddNotification={onAddNotification}
+                                    />
+                                </motion.div>
+                            )}
+                            {activeTab === 'canvas' && (
+                                <motion.div
+                                    key="canvas"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.25 }}
+                                >
+                                    <ArchitectureCanvasView canvas={architectureCanvas} />
+                                </motion.div>
+                            )}
+                            {activeTab === 'templates' && (
+                                <motion.div
+                                    key="templates"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.25 }}
+                                >
+                                    <CodebaseTemplatesView onAddNotification={onAddNotification} />
+                                </motion.div>
+                            )}
                             {activeTab === 'design' && (
                                 <motion.div
                                     key="design"
