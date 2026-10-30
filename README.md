@@ -34,17 +34,22 @@ no build required.
 - **Browser-based sign-in** — authenticate on the real web app; your password
   never touches the desktop app. The session is handed back over a local
   loopback callback.
-- **Cloud chat** — stream responses from the platform's models (metered by
-  credits).
+- **Cloud chat & tools** — stream responses from the platform's models (metered by
+  credits), with full support for Study AI, Meeting Minutes, and Social Media Roast.
+- **PRD Workspace & Coding Agent Blueprint** — interactive requirement builder with
+  Mermaid schemas, user flow maps, PRDTask sprint breakdown, coding agent files
+  (`.cursorrules`, `CLAUDE.md`, `AGENTS.md`), interactive Canvas, direct GitHub
+  repository push, and AI Refine Drawer.
+- **TTS Studio** — text-to-speech generation with audio playback and download.
 - **Local models** — auto-detect and chat with Ollama or any OpenAI-compatible
   server on your machine, unmetered.
-- **Local session history** — chat, PRD Builder, Minutes and Study sessions are
+- **Local session history** — chat, PRD Builder, Minutes, and Study sessions are
   auto-saved to your computer (electron-store) and browsable from a history
-  menu in the navbar — rename, reopen or delete any session, all offline.
-- **Profile & navbar** — model selection, provider settings and account live in
+  menu in the navbar — rename, reopen, or delete any session, all offline.
+- **Profile & navbar** — model selection, provider settings, and account details live in
   a clean floating navbar + Profile view.
 - **Live credit badge** — always know what's left on your plan.
-- **Light & dark themes** with an animated circle-bloom transition.
+- **Light & dark themes** with animated transitions.
 
 ## Architecture
 
