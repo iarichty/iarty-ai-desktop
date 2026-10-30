@@ -76,7 +76,65 @@ export interface PrdSuggestion {
     text: string;
 }
 
-export type PrdOutputTab = 'prd' | 'database' | 'flow' | 'design' | 'mockup';
+export type PrdOutputTab = 'prd' | 'database' | 'flow' | 'design' | 'mockup' | 'tasks' | 'agent-rules' | 'canvas' | 'templates';
+
+export interface PrdTaskItem {
+    id: string;
+    title: string;
+    description: string;
+    acceptanceCriteria: string[];
+    promptForAgent: string;
+    status: 'pending' | 'in_progress' | 'completed';
+    filesToTouch?: string[];
+}
+
+export interface PrdTaskPhase {
+    id: string;
+    phaseNumber: number;
+    phaseTitle: string;
+    summary: string;
+    tasks: PrdTaskItem[];
+}
+
+export interface PrdAgentRules {
+    cursorrules: string;
+    claudeMd: string;
+    agentsMd: string;
+    systemPrompt: string;
+}
+
+export interface CodebaseTemplate {
+    id: string;
+    name: string;
+    tagline: string;
+    category: 'Fullstack' | 'Frontend' | 'Backend' | 'Mobile';
+    techStack: string[];
+    features: string[];
+    githubUrl?: string;
+    setupCommand: string;
+    recommendedFor: string;
+}
+
+export interface CanvasNode {
+    id: string;
+    label: string;
+    category: 'user' | 'frontend' | 'backend' | 'database' | 'external';
+    description: string;
+    x: number;
+    y: number;
+}
+
+export interface CanvasEdge {
+    id: string;
+    from: string;
+    to: string;
+    label: string;
+}
+
+export interface PrdArchitectureCanvas {
+    nodes: CanvasNode[];
+    edges: CanvasEdge[];
+}
 
 /** A single generated per-page UI mockup (self-contained HTML document). */
 export interface PrdMockupPage {
